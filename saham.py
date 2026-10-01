@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
-    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard",
+    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard (IDX)",
     page_icon="📈",
     layout="wide"
 )
@@ -29,25 +29,34 @@ def load_book_references():
 
 book_data = load_book_references()
 
-# Sidebar Navigasi & Input Parameter Saham
+# Sidebar Navigasi & Input Parameter Saham (Daftar Lengkap Saham Non-Gorengan / Blue Chip BEI)
 st.sidebar.header("⚙️ Konfigurasi & Pemilihan Saham")
 
 popular_stocks = {
-    "BBCA.JK (Bank Central Asia - Bluechip)": "BBCA.JK",
-    "BBRI.JK (Bank Rakyat Indonesia - Bluechip)": "BBRI.JK",
-    "BMRI.JK (Bank Mandiri - Bluechip)": "BMRI.JK",
-    "ASII.JK (Astra International)": "ASII.JK",
-    "TLKM.JK (Telkom Indonesia)": "TLKM.JK",
-    "ADRO.JK (Adaro Energy)": "ADRO.JK",
-    "AAPL (Apple Inc.)": "AAPL",
-    "TSLA (Tesla Inc.)": "TSLA",
-    "NVDA (NVIDIA Corp.)": "NVDA"
+    "BBCA – Bank Central Asia Tbk": "BBCA.JK",
+    "BBRI – Bank Rakyat Indonesia Tbk": "BBRI.JK",
+    "BMRI – Bank Mandiri Tbk": "BMRI.JK",
+    "BBNI – Bank Negara Indonesia Tbk": "BBNI.JK",
+    "ASII – Astra International Tbk": "ASII.JK",
+    "TLKM – Telkom Indonesia Tbk": "TLKM.JK",
+    "UNVR – Unilever Indonesia Tbk": "UNVR.JK",
+    "ICBP – Indofood CBP Sukses Makmur Tbk": "ICBP.JK",
+    "INDF – Indofood Sukses Makmur Tbk": "INDF.JK",
+    "JSMR – Jasa Marga Tbk": "JSMR.JK",
+    "ADRO – Adaro Energy Indonesia Tbk": "ADRO.JK",
+    "PGAS – Perusahaan Gas Negara Tbk": "PGAS.JK",
+    "INKP – Indah Kiat Pulp & Paper Tbk": "INKP.JK",
+    "MDKA – Merdeka Copper Gold Tbk": "MDKA.JK",
+    "ANTM – Aneka Tambang Tbk": "ANTM.JK",
+    "MYOR – Mayora Indah Tbk": "MYOR.JK",
+    "INTP – Indocement Tunggal Prakarsa Tbk": "INTP.JK",
+    "SMGR – Semen Indonesia Tbk": "SMGR.JK"
 }
 
-stock_choice = st.sidebar.selectbox("Pilih Saham Unggulan", options=list(popular_stocks.keys()))
+stock_choice = st.sidebar.selectbox("Pilih Saham Non-Gorengan (Blue Chip)", options=list(popular_stocks.keys()))
 selected_ticker_default = popular_stocks[stock_choice]
 
-ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham Lainnya (Yahoo Finance format)", value=selected_ticker_default)
+ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham IDX Lainnya (Format: KODE.JK)", value=selected_ticker_default)
 ticker_symbol = ticker_symbol.strip().upper()
 
 period_option = st.sidebar.selectbox("Rentang Waktu", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
@@ -61,9 +70,9 @@ st.sidebar.info(
     "serta pemantauan berita finansial terkini dari Kontan, CNBC Indonesia, Bisnis.com, dan Investor.id."
 )
 
-st.title("📊 Dasbor Prediksi, Analisis Berita & Filter Saham Presisi (Real-Time)")
+st.title("📊 Dasbor Prediksi, Analisis Berita & Filter Saham Presisi (IDX Real-Time)")
 st.markdown(
-    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* untuk **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -79,7 +88,7 @@ def fetch_stock_data(ticker, period, interval):
 data = fetch_stock_data(ticker_symbol, period_option, interval_option)
 
 if data.empty or len(data) < 15:
-    st.warning(f"⚠️ Data untuk ticker **{ticker_symbol}** tidak ditemukan atau kurang. Pastikan format penulisan benar (Contoh: `BBCA.JK`, `TLKM.JK`).")
+    st.warning(f"⚠️ Data untuk ticker **{ticker_symbol}** tidak ditemukan atau kurang. Pastikan format penulisan benar dan berakhiran `.JK` (Contoh: `BBCA.JK`, `TLKM.JK`).")
 else:
     # --- AMBIL BERITA TERBARU DARI YFINANCE (TERHUBUNG KE PORTAL BERITA UTAMA) ---
     ticker_obj = yf.Ticker(ticker_symbol)
@@ -194,7 +203,7 @@ else:
     
     fig.update_layout(
         title=f'Pergerakan & Proyeksi Harga Saham {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
-        yaxis_title='Harga Saham',
+        yaxis_title='Harga Saham (IDR)',
         xaxis_title='Tanggal Transaksi',
         template='plotly_dark',
         height=550,
@@ -224,7 +233,7 @@ else:
                 st.markdown(f"**[{title}]({link})**")
                 st.caption(f"Sumber: {publisher}")
     else:
-        st.info("Belum ada berita real-time terbaru yang terindeks untuk emiten ini dalam 24 jam terakhir. Anda dapat merujuk langsung ke portal terpercaya seperti [Kontan](https://www.kontan.co.id/), [CNBC Indonesia](https://www.cnbcindonesia.com/market), atau [Bisnis.com](https://www.bisnis.com/).")
+        st.info("Belum ada berita real-time terbaru yang terindeks untuk emiten ini dalam 24 jam terakhir. Anda dapat merujuk langsung ke portal seperti [Kontan](https://www.kontan.co.id/), [CNBC Indonesia](https://www.cnbcindonesia.com/market), atau [Bisnis.com](https://www.bisnis.com/).")
 
     st.markdown("---")
 
