@@ -3,6 +3,8 @@ pandas
 numpy
 yfinance
 plotly
+feedparser
 streamlit-autorefresh
 scikit-learn
-feedparser
+xgboost
+lightgbm
