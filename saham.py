@@ -252,7 +252,7 @@ else:
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
     col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
-    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI (BEBAS TUMPUK) ---
+    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI (BERSIH & TANPA TUMPUKAN TEKS) ---
     st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
     
     fig = go.Figure()
@@ -272,12 +272,15 @@ else:
     plot_pred_dates = [last_date] + list(future_dates)
     plot_pred_prices = [latest_close] + list(predicted_prices)
     
-    # Label teks disederhanakan hanya menampilkan harga agar tidak bertumpuk di bawah/atas grafik
+    # Label dikosongkan pada titik 1-4 dan hanya ditampilkan pada titik terakhir (hari ke-5) agar bersih tanpa tumpukan.
+    labels_text = [""] * len(plot_pred_prices)
+    labels_text[-1] = f"<b>Target 5 Hari: {predicted_target:,.0f}</b>"
+
     fig.add_trace(go.Scatter(
         x=plot_pred_dates,
         y=plot_pred_prices,
         mode='lines+markers+text',
-        text=[f"<b>{p:,.0f}</b>" for p in plot_pred_prices],
+        text=labels_text,
         textposition="top center",
         line=dict(color='#00FF7F', width=2.5, dash='dash'),
         marker=dict(size=9, color='#00FF7F'),
@@ -300,7 +303,7 @@ else:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Tabel Detail Tanggal Prediksi (Tempat paling rapi untuk melihat tanggal & target harga harian)
+    # Tabel Detail Tanggal Prediksi
     with st.expander("📅 Lihat Detail Proyeksi Harga Berdasarkan Tanggal (5 Hari Ke Depan)"):
         df_future_table = pd.DataFrame({
             "Tanggal Proyeksi": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
