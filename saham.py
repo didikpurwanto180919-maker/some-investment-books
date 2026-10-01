@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import feedparser
 import urllib.parse
 from streamlit_autorefresh import st_autorefresh
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -89,13 +89,13 @@ st.sidebar.info(
     "Dasbor ini mengintegrasikan:\n"
     "- **Kontan, CNBC Indonesia, Bisnis.com** (Berita Real-Time)\n"
     "- **Keterbukaan Informasi IDX & IDNFinancials** (Data Fundamental)\n"
-    "- **Stockbit & TradingView** (Riset Komunitas)\n"
-    "- *The Intelligent Investor* (Benjamin Graham) & *Encyclopedia of Chart Patterns* (Thomas N. Bulkowski)[cite: 6]"
+    "- **Random Forest Machine Learning** (Prediksi Non-Linear Adaptif)\n"
+    "- *The Intelligent Investor* & *Encyclopedia of Chart Patterns*"
 )
 
-st.title("📊 Dasbor Prediksi, Analisis Berita & Filter Saham Presisi (IDX Real-Time)")
+st.title("📊 Dasbor Prediksi AI (Random Forest), Analisis Berita & Filter Saham Presisi")
 st.markdown(
-    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* dari portal terpercaya untuk emiten **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis berbasis *Machine Learning* non-linear dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -162,11 +162,11 @@ data = fetch_stock_data(ticker_symbol, period_option, interval_option)
 realtime_news = fetch_realtime_news(ticker_symbol)
 
 # --- VALIDASI KEAMANAN DATA AWAL ---
-if data.empty or len(data) < 20:
+if data.empty or len(data) < 30:
     st.warning(
-        f"⚠️ Data untuk ticker **{ticker_symbol}** dengan rentang waktu **{period_option}** tidak mencukupi atau kosong. "
-        f"Indikator teknikal (seperti MA50) memerlukan minimal 50 data baris. "
-        f"Silakan pilih **Rentang Waktu** yang lebih panjang (misalnya **6mo** atau **1y**) melalui sidebar."
+        f"⚠️ Data untuk ticker **{ticker_symbol}** dengan rentang waktu **{period_option}** tidak mencukupi. "
+        f"Model Random Forest & indikator teknikal memerlukan minimal 30 baris data historis. "
+        f"Silakan pilih **Rentang Waktu** yang lebih panjang (misalnya **6mo** atau **1y**)."
     )
 else:
     # Perhitungan Indikator Teknikal
@@ -187,9 +187,8 @@ else:
     # Membersihkan baris kosong (NaN) hasil kalkulasi indikator
     data.dropna(inplace=True)
     
-    # Validasi ulang setelah dropna agar aman dari error index out of bounds
-    if data.empty or len(data) < 5:
-        st.warning("⚠️ Data terlalu sedikit setelah dibersihkan dari nilai kosong (NaN). Harap gunakan rentang waktu yang lebih panjang (misalnya 1y).")
+    if data.empty or len(data) < 10:
+        st.warning("⚠️ Data terlalu sedikit setelah dibersihkan dari nilai kosong (NaN). Harap gunakan rentang waktu yang lebih panjang.")
     else:
         # --- DETEKSI SAHAM GORENGAN / SPEKULATIF ---
         latest_close_check = float(data['Close'].iloc[-1])
@@ -230,21 +229,47 @@ else:
                 if nk in title_lower:
                     news_sentiment_score -= 1
 
-        # --- SISTEM PREDIKSI HARGA & TANGGAL MASA DEPAN (5 HARI KEDEPAN) ---
+        # --- SISTEM PREDIKSI MACHINE LEARNING (RANDOM FOREST REGRESSOR) ---
         df_pred = data.reset_index()
         df_pred['Days'] = np.arange(len(df_pred))
-        tail_count = min(30, len(df_pred))
-        X = df_pred[['Days']].tail(tail_count)
-        y = df_pred['Close'].tail(tail_count)
         
-        model = LinearRegression()
-        model.fit(X, y)
-        
+        # Feature Engineering Non-Linear untuk Random Forest
+        df_pred['Lag1'] = df_pred['Close'].shift(1)
+        df_pred['Lag2'] = df_pred['Close'].shift(2)
+        df_pred['Rolling_Mean_5'] = df_pred['Close'].rolling(5).mean()
+        df_pred.dropna(inplace=True)
+
+        features = ['Days', 'Lag1', 'Lag2', 'Rolling_Mean_5']
+        X = df_pred[features]
+        y = df_pred['Close']
+
+        # Training Model Random Forest Non-Linear
+        rf_model = RandomForestRegressor(n_estimators=150, max_depth=10, random_state=42)
+        rf_model.fit(X, y)
+
+        # Prediksi Rekursif Multi-Step (5 Hari Ke Depan)
         last_date = data.index[-1]
         future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=5)
         
-        next_days_idx = np.array([[len(df_pred) + i] for i in range(1, 6)])
-        predicted_prices = model.predict(next_days_idx)
+        predicted_prices = []
+        last_row_features = X.iloc[-1].copy()
+        
+        for i in range(5):
+            next_day_idx = last_row_features['Days'] + 1
+            current_input = pd.DataFrame([[
+                next_day_idx, 
+                last_row_features['Lag1'], 
+                last_row_features['Lag2'], 
+                last_row_features['Rolling_Mean_5']
+            ]], columns=features)
+            
+            pred_val = rf_model.predict(current_input)[0]
+            predicted_prices.append(pred_val)
+            
+            last_row_features['Lag2'] = last_row_features['Lag1']
+            last_row_features['Lag1'] = pred_val
+            last_row_features['Days'] = next_day_idx
+
         predicted_target = float(predicted_prices[-1])
         pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
 
@@ -259,12 +284,12 @@ else:
         # Metrik Utama
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Harga Terakhir", f"{latest_close:,.2f}", f"{pct_change:+.2f}%")
-        col2.metric("Prediksi Target (5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
+        col2.metric("Prediksi Target (AI RF - 5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
         col3.metric("RSI (14)", f"{latest_rsi:.2f}")
         col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
-        # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI (BERSIH & TANPA TUMPUKAN TEKS) ---
-        st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
+        # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI AI ---
+        st.subheader(f"📉 Grafik Harga & Proyeksi Non-Linear Random Forest: {ticker_symbol}")
         
         fig = go.Figure()
         
@@ -283,7 +308,6 @@ else:
         plot_pred_dates = [last_date] + list(future_dates)
         plot_pred_prices = [latest_close] + list(predicted_prices)
         
-        # Label dikosongkan pada titik 1-4 dan hanya ditampilkan pada titik terakhir (hari ke-5) agar bersih tanpa tumpukan.
         labels_text = [""] * len(plot_pred_prices)
         labels_text[-1] = f"<b>Target 5 Hari: {predicted_target:,.0f}</b>"
 
@@ -295,11 +319,11 @@ else:
             textposition="top center",
             line=dict(color='#00FF7F', width=2.5, dash='dash'),
             marker=dict(size=9, color='#00FF7F'),
-            name='Proyeksi Tren AI (5 Hari)'
+            name='Proyeksi Non-Linear RF (5 Hari)'
         ))
         
         fig.update_layout(
-            title=f'Pergerakan & Proyeksi Harga Saham {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
+            title=f'Pergerakan & Proyeksi AI Random Forest {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
             yaxis_title='Harga Saham (IDR)',
             xaxis_title='Rentang Waktu Transaksi & Proyeksi',
             template='plotly_dark',
@@ -336,12 +360,12 @@ else:
                     st.markdown(f"**[{title}]({link})**")
                     st.caption(f"📌 Sumber: {publisher} | {date_pub}")
         else:
-            st.info("Belum ada berita real-time spesifik yang terindeks dalam beberapa hari terakhir. Anda dapat memantau langsung melalui tautan [Kontan Investasi](https://investasi.kontan.co.id/), [CNBC Market](https://www.cnbcindonesia.com/market), atau [Keterbukaan Informasi IDX](https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi).")
+            st.info("Belum ada berita real-time spesifik yang terindeks dalam beberapa hari terakhir.")
 
         st.markdown("---")
 
         # Modul Sistem Prediksi & Rekomendasi Presisi
-        st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis (Teknikal + Berita Real-Time)")
+        st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis (Teknikal + Berita + AI)")
         
         col_rec1, col_rec2 = st.columns([2, 1])
         
@@ -381,19 +405,19 @@ else:
             # Integrasi Sentimen Berita Real-Time ke Scoring
             if news_sentiment_score > 0:
                 score += 1
-                signals.append(f"✔ **Sentimen Berita Real-Time Positif**: Berita terkini dari Kontan/CNBC/Bisnis bernada akumulatif/ekspansi.")
+                signals.append("✔ **Sentimen Berita Real-Time Positif**: Berita terkini bernada akumulatif/ekspansi.")
             elif news_sentiment_score < 0:
                 score -= 1
-                signals.append(f"✖ **Sentimen Berita Real-Time Negatif**: Berita terkini memuat sentimen koreksi/tekanan.")
+                signals.append("✖ **Sentimen Berita Real-Time Negatif**: Berita terkini memuat sentimen koreksi.")
             else:
                 signals.append("ℹ **Sentimen Berita Netral**: Tidak ada anomali berita fundamental ekstrem.")
 
             if pred_pct_change > 0:
                 score += 1
-                signals.append(f"✔ **Proyeksi Tren AI**: Model regresi memproyeksikan kenaikan sebesar **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
+                signals.append(f"✔ **Proyeksi Tren AI (Random Forest)**: Model memproyeksikan kenaikan **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
             else:
                 score -= 1
-                signals.append(f"✖ **Proyeksi Tren AI**: Model regresi memproyeksikan koreksi sebesar **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
+                signals.append(f"✖ **Proyeksi Tren AI (Random Forest)**: Model memproyeksikan koreksi **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
 
             for sig in signals:
                 st.markdown(f"- {sig}")
