@@ -63,7 +63,7 @@ st.sidebar.info(
 
 st.title("📊 Dasbor Prediksi & Filter Saham Presisi (Real-Time)")
 st.markdown(
-    f"Sistem analisis tren harga otomatis dengan proteksi deteksi saham spekulatif / gorengan untuk **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis dengan visualisasi proyeksi tanggal masa depan untuk **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -83,7 +83,7 @@ if data.empty or len(data) < 15:
 else:
     # --- DETEKSI SAHAM GORENGAN / SPEKULATIF ---
     latest_close_check = float(data['Close'].iloc[-1])
-    price_std = float(data['Close'].pct_change().std() * 100) # Volatilitas harian
+    price_std = float(data['Close'].pct_change().std() * 100)
     
     is_potential_gorengan = False
     gorengan_reasons = []
@@ -100,14 +100,12 @@ else:
     data['MA20'] = data['Close'].rolling(window=20).mean()
     data['MA50'] = data['Close'].rolling(window=50).mean()
     
-    # RSI Calculation (14)
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     data['RSI'] = 100 - (100 / (1 + rs))
 
-    # MACD Calculation
     exp1 = data['Close'].ewm(span=12, adjust=False).mean()
     exp2 = data['Close'].ewm(span=26, adjust=False).mean()
     data['MACD'] = exp1 - exp2
@@ -125,7 +123,7 @@ else:
     latest_macd = float(data['MACD'].iloc[-1])
     latest_signal = float(data['Signal_Line'].iloc[-1])
 
-    # --- SISTEM PREDIKSI HARGA BERBASIS MACHINE LEARNING (REGRESI LINIER 5 HARI KEDEPAN) ---
+    # --- SISTEM PREDIKSI HARGA & TANGGAL MASA DEPAN (5 HARI KEDEPAN) ---
     df_pred = data.reset_index()
     df_pred['Days'] = np.arange(len(df_pred))
     X = df_pred[['Days']].tail(30)
@@ -134,8 +132,12 @@ else:
     model = LinearRegression()
     model.fit(X, y)
     
-    next_days = np.array([[len(df_pred) + i] for i in range(1, 6)])
-    predicted_prices = model.predict(next_days)
+    # Generate Tanggal Masa Depan (Hari Kerja Bursa)
+    last_date = data.index[-1]
+    future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=5)
+    
+    next_days_idx = np.array([[len(df_pred) + i] for i in range(1, 6)])
+    predicted_prices = model.predict(next_days_idx)
     predicted_target = float(predicted_prices[-1])
     pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
 
@@ -154,28 +156,57 @@ else:
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
     col4.metric("Status Volatilitas", "Tinggi / Spekulatif" if is_potential_gorengan else "Normal / Stabil")
 
-    # Visualisasi Grafik Candlestick & Indikator
-    st.subheader(f"📉 Grafik Harga & Analisis Prediksi Tren: {ticker_symbol}")
+    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI TANGGAL MASA DEPAN ---
+    st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
+    
     fig = go.Figure()
+    
+    # Candlestick Aktual
     fig.add_trace(go.Candlestick(
         x=data.index,
         open=data['Open'],
         high=data['High'],
         low=data['Low'],
         close=data['Close'],
-        name='Candlestick'
+        name='Candlestick Aktual'
     ))
+    
+    # Indikator MA
     fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], line=dict(color='orange', width=1.5), name='MA 20'))
     fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], line=dict(color='blue', width=1.5), name='MA 50'))
     
+    # Garis Proyeksi AI (Menyambungkan titik terakhir ke 5 hari ke depan beserta tanggalnya)
+    plot_pred_dates = [last_date] + list(future_dates)
+    plot_pred_prices = [latest_close] + list(predicted_prices)
+    
+    fig.add_trace(go.Scatter(
+        x=plot_pred_dates,
+        y=plot_pred_prices,
+        mode='lines+markers',
+        line=dict(color='#00FF7F', width=2.5, dash='dash'),
+        marker=dict(size=8, color='#00FF7F'),
+        name='Proyeksi Tren AI (5 Hari)'
+    ))
+    
     fig.update_layout(
-        title=f'Pergerakan & Proyeksi Tren Harga Saham {ticker_symbol}',
-        yaxis_title='Harga',
-        xaxis_title='Tanggal',
+        title=f'Pergerakan & Proyeksi Harga Saham {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
+        yaxis_title='Harga Saham',
+        xaxis_title='Tanggal Transaksi',
         template='plotly_dark',
-        height=500
+        height=550,
+        xaxis_rangeslider_visible=False,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Tabel Detail Tanggal Prediksi
+    with st.expander("📅 Lihat Detail Proyeksi Harga Berdasarkan Tanggal (5 Hari Ke Depan)"):
+        df_future_table = pd.DataFrame({
+            "Tanggal Proyeksi": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
+            "Prediksi Harga Target": [f"{p:,.2f}" for p in predicted_prices],
+            "Estimasi Perubahan (%)": [f"{((p - latest_close) / latest_close) * 100:+.2f}%" for p in predicted_prices]
+        })
+        st.table(df_future_table)
 
     # Modul Sistem Prediksi & Rekomendasi Presisi
     st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis")
@@ -190,7 +221,7 @@ else:
         
         if is_potential_gorengan:
             score -= 3
-            signals.append("✖ **Peringatan Sistem**: Saham dikategorikan spekulatif tinggi, mengabaikan analisis teknikal murni karena risiko tinggi.")
+            signals.append("✖ **Peringatan Sistem**: Saham dikategorikan spekulatif tinggi, mengabaikan analisis teknikal murni.")
 
         if latest_close > latest_ma20:
             score += 1
@@ -217,10 +248,10 @@ else:
 
         if pred_pct_change > 0:
             score += 1
-            signals.append(f"✔ **Proyeksi Tren AI**: Model regresi memproyeksikan kenaikan sebesar **{pred_pct_change:.2f}%** dalam 5 hari.")
+            signals.append(f"✔ **Proyeksi Tren AI**: Model regresi memproyeksikan kenaikan sebesar **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
         else:
             score -= 1
-            signals.append(f"✖ **Proyeksi Tren AI**: Model regresi memproyeksikan koreksi sebesar **{pred_pct_change:.2f}%** dalam 5 hari.")
+            signals.append(f"✖ **Proyeksi Tren AI**: Model regresi memproyeksikan koreksi sebesar **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
 
         for sig in signals:
             st.markdown(f"- {sig}")
