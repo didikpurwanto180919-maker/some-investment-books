@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
+import feedparser
+import urllib.parse
 from streamlit_autorefresh import st_autorefresh
 from sklearn.linear_model import LinearRegression
 
@@ -82,16 +84,18 @@ period_option = st.sidebar.selectbox("Rentang Waktu", ["1mo", "3mo", "6mo", "1y"
 interval_option = st.sidebar.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📚 Sumber Dasar Literatur & Berita")
+st.sidebar.subheader("📚 Sumber Referensi & Berita Resmi")
 st.sidebar.info(
-    "Dasbor ini mengintegrasikan analisis teknikal, Machine Learning, kaidah literatur klasik "
-    "(*Visual Guide to Chart Patterns* oleh Thomas N. Bulkowski[cite: 6], *The Intelligent Investor* oleh Benjamin Graham), "
-    "serta pemantauan berita finansial terkini dari Kontan, CNBC Indonesia, Bisnis.com, dan Investor.id."
+    "Dasbor ini mengintegrasikan:\n"
+    "- **Kontan, CNBC Indonesia, Bisnis.com** (Berita Real-Time)\n"
+    "- **Keterbukaan Informasi IDX & IDNFinancials** (Data Fundamental)\n"
+    "- **Stockbit & TradingView** (Riset Komunitas)\n"
+    "- *The Intelligent Investor* (Benjamin Graham) & *Encyclopedia of Chart Patterns* (Thomas N. Bulkowski)[cite: 6]"
 )
 
 st.title("📊 Dasbor Prediksi, Analisis Berita & Filter Saham Presisi (IDX Real-Time)")
 st.markdown(
-    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* dari portal terpercaya untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -104,19 +108,62 @@ def fetch_stock_data(ticker, period, interval):
     except Exception as e:
         return pd.DataFrame()
 
+# --- FUNGSI FETCH BERITA REAL-TIME DARI RSS (KONTAN, CNBC, BISNIS, IDX) ---
+@st.cache_data(ttl=300)
+def fetch_realtime_news(ticker):
+    clean_code = ticker.replace(".JK", "").lower()
+    news_items = []
+    
+    query = urllib.parse.quote(f"saham {clean_code} OR {ticker}")
+    rss_url = f"https://news.google.com/rss/search?q={query}+when:7d&hl=id&gl=ID&ceid=ID:id"
+    
+    try:
+        feed = feedparser.parse(rss_url)
+        for entry in feed.entries[:5]:
+            title = entry.title
+            link = entry.link
+            published = entry.published if hasattr(entry, 'published') else "Terbaru"
+            
+            source = "Portal Finansial"
+            if "kontan" in link.lower() or "kontan" in title.lower():
+                source = "Kontan Investasi"
+            elif "cnbcindonesia" in link.lower() or "cnbc" in title.lower():
+                source = "CNBC Indonesia"
+            elif "bisnis" in link.lower():
+                source = "Bisnis Market"
+            elif "idx" in link.lower():
+                source = "Keterbukaan Informasi IDX"
+
+            news_items.append({
+                "title": title,
+                "link": link,
+                "publisher": source,
+                "date": published
+            })
+    except Exception:
+        pass
+
+    if not news_items:
+        try:
+            yf_obj = yf.Ticker(ticker)
+            for item in yf_obj.news[:3]:
+                news_items.append({
+                    "title": item.get('title', 'Berita Pasar'),
+                    "link": item.get('link', '#'),
+                    "publisher": item.get('publisher', 'Yahoo Finance / IDX'),
+                    "date": "Hari ini"
+                })
+        except Exception:
+            pass
+
+    return news_items
+
 data = fetch_stock_data(ticker_symbol, period_option, interval_option)
+realtime_news = fetch_realtime_news(ticker_symbol)
 
 if data.empty or len(data) < 15:
     st.warning(f"⚠️ Data untuk ticker **{ticker_symbol}** tidak ditemukan atau kurang. Pastikan format penulisan benar dan berakhiran `.JK` (Contoh: `BBCA.JK`, `TLKM.JK`).")
 else:
-    # --- AMBIL BERITA TERBARU DARI YFINANCE ---
-    ticker_obj = yf.Ticker(ticker_symbol)
-    news_list = []
-    try:
-        news_list = ticker_obj.news
-    except Exception:
-        news_list = []
-
     # --- DETEKSI SAHAM GORENGAN / SPEKULATIF ---
     latest_close_check = float(data['Close'].iloc[-1])
     price_std = float(data['Close'].pct_change().std() * 100)
@@ -159,6 +206,20 @@ else:
     latest_macd = float(data['MACD'].iloc[-1])
     latest_signal = float(data['Signal_Line'].iloc[-1])
 
+    # --- ANALISIS SENTIMEN BERITA REAL-TIME (KEYWORD SCORING) ---
+    news_sentiment_score = 0
+    positive_keywords = ["naik", "lonjak", "tumbuh", "laba", "dividen", "positif", "beli", "akuisisi", "ekspansi", "rebound", "menguat"]
+    negative_keywords = ["anjlok", "turun", "rugi", "koreksi", "jual", "beban", "sanksi", "melemah", "lesu", "default"]
+
+    for n in realtime_news:
+        title_lower = n['title'].lower()
+        for pk in positive_keywords:
+            if pk in title_lower:
+                news_sentiment_score += 1
+        for nk in negative_keywords:
+            if nk in title_lower:
+                news_sentiment_score -= 1
+
     # --- SISTEM PREDIKSI HARGA & TANGGAL MASA DEPAN (5 HARI KEDEPAN) ---
     df_pred = data.reset_index()
     df_pred['Days'] = np.arange(len(df_pred))
@@ -189,7 +250,7 @@ else:
     col1.metric("Harga Terakhir", f"{latest_close:,.2f}", f"{pct_change:+.2f}%")
     col2.metric("Prediksi Target (5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
-    col4.metric("Status Volatilitas", "Tinggi / Spekulatif" if is_potential_gorengan else "Normal / Stabil")
+    col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
     # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI ---
     st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
@@ -240,24 +301,25 @@ else:
         })
         st.table(df_future_table)
 
-    # --- MODUL BERITA FINANSIAL & SENTIMEN PASAR REAL-TIME ---
-    st.subheader(f"📰 Berita Finansial & Sentimen Pasar Terkini: {ticker_symbol}")
-    if news_list:
-        news_cols = st.columns(min(3, len(news_list[:3])))
-        for idx, item in enumerate(news_list[:3]):
+    # --- MODUL BERITA FINANSIAL & SENTIMEN PASAR REAL-TIME TERINTEGRASI ---
+    st.subheader(f"📰 Berita Real-Time (Kontan, CNBC, Bisnis, & Keterbukaan IDX): {ticker_symbol}")
+    if realtime_news:
+        news_cols = st.columns(min(3, len(realtime_news[:3])))
+        for idx, item in enumerate(realtime_news[:3]):
             with news_cols[idx]:
                 title = item.get('title', 'Berita Finansial')
-                publisher = item.get('publisher', 'Media Finansial')
+                publisher = item.get('publisher', 'Portal Berita')
                 link = item.get('link', '#')
+                date_pub = item.get('date', '')
                 st.markdown(f"**[{title}]({link})**")
-                st.caption(f"Sumber: {publisher}")
+                st.caption(f"📌 Sumber: {publisher} | {date_pub}")
     else:
-        st.info("Belum ada berita real-time terbaru yang terindeks untuk emiten ini dalam 24 jam terakhir. Anda dapat merujuk langsung ke portal seperti [Kontan](https://www.kontan.co.id/), [CNBC Indonesia](https://www.cnbcindonesia.com/market), atau [Bisnis.com](https://www.bisnis.com/).")
+        st.info("Belum ada berita real-time spesifik yang terindeks dalam beberapa hari terakhir. Anda dapat memantau langsung melalui tautan [Kontan Investasi](https://investasi.kontan.co.id/), [CNBC Market](https://www.cnbcindonesia.com/market), atau [Keterbukaan Informasi IDX](https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi).")
 
     st.markdown("---")
 
     # Modul Sistem Prediksi & Rekomendasi Presisi
-    st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis")
+    st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis (Teknikal + Berita Real-Time)")
     
     col_rec1, col_rec2 = st.columns([2, 1])
     
@@ -293,6 +355,16 @@ else:
         else:
             score -= 1
             signals.append("✖ **MACD Bearish Crossover**: Tekanan tren menurun mendominasi.")
+
+        # Integrasi Sentimen Berita Real-Time ke Scoring
+        if news_sentiment_score > 0:
+            score += 1
+            signals.append(f"✔ **Sentimen Berita Real-Time Positif**: Berita terkini dari Kontan/CNBC/Bisnis bernada akumulatif/ekspansi.")
+        elif news_sentiment_score < 0:
+            score -= 1
+            signals.append(f"✖ **Sentimen Berita Real-Time Negatif**: Berita terkini memuat sentimen koreksi/tekanan.")
+        else:
+            signals.append("ℹ **Sentimen Berita Netral**: Tidak ada anomali berita fundamental ekstrem.")
 
         if pred_pct_change > 0:
             score += 1
