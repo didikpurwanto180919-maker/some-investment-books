@@ -1,5 +1,3 @@
-import json
-import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,14 +16,35 @@ st.set_page_config(
 # Konfigurasi Auto-Refresh Real-Time (Setiap 60 detik)
 st_autorefresh(interval=60 * 1000, key="datarefresh")
 
-# Fungsi untuk memuat referensi buku dari direktori lokal / GitHub
+# Data Referensi Buku Literasi Keuangan & Analisis Teknikal (Embedded)
 @st.cache_data
 def load_book_references():
-    path = "books_reference/bulkowski_patterns.json"
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            return json.load(f)
-    return {"reference_books": [], "patterns_rules": {}}
+    return {
+        "reference_books": [
+            {
+                "title": "Encyclopedia of Chart Patterns",
+                "author": "Thomas N. Bulkowski",
+                "year": 2021,
+                "core_principles": [
+                    "Validasi breakout harus dikonfirmasi oleh lonjakan volume perdagangan.",
+                    "Perhatikan pola throwback dan pullback untuk meminimalkan risiko false breakout."
+                ]
+            },
+            {
+                "title": "The Intelligent Investor",
+                "author": "Benjamin Graham",
+                "year": 1949,
+                "core_principles": [
+                    "Margin of Safety: Selalu berinvestasi pada perusahaan dengan fundamental kuat dan harga wajar.",
+                    "Hindari spekulasi jangka pendek pada saham berisiko tinggi atau tanpa likuiditas memadai."
+                ]
+            }
+        ],
+        "patterns_rules": {
+            "RSI": "Indikator momentum untuk mendeteksi area Overbought (>70) dan Oversold (<30).",
+            "MACD": "Mengukur konvergensi dan divergensi garis rata-rata pergerakan untuk sinyal tren."
+        }
+    }
 
 book_data = load_book_references()
 
@@ -90,7 +109,7 @@ data = fetch_stock_data(ticker_symbol, period_option, interval_option)
 if data.empty or len(data) < 15:
     st.warning(f"⚠️ Data untuk ticker **{ticker_symbol}** tidak ditemukan atau kurang. Pastikan format penulisan benar dan berakhiran `.JK` (Contoh: `BBCA.JK`, `TLKM.JK`).")
 else:
-    # --- AMBIL BERITA TERBARU DARI YFINANCE (TERHUBUNG KE PORTAL BERITA UTAMA) ---
+    # --- AMBIL BERITA TERBARU DARI YFINANCE ---
     ticker_obj = yf.Ticker(ticker_symbol)
     news_list = []
     try:
@@ -172,7 +191,7 @@ else:
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
     col4.metric("Status Volatilitas", "Tinggi / Spekulatif" if is_potential_gorengan else "Normal / Stabil")
 
-    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI TANGGAL MASA DEPAN ---
+    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI ---
     st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
     
     fig = go.Figure()
@@ -308,9 +327,9 @@ else:
     with col_rec2:
         st.markdown("### 📖 Referensi Buku Terhubung")
         if book_data.get("reference_books"):
-            for book in book_data["reference_books"][:2]:
+            for book in book_data["reference_books"]:
                 st.markdown(f"**{book['title']}** ({book['year']}) — *{book['author']}*")
-                for rule in book['core_principles'][:1]:
+                for rule in book['core_principles']:
                     st.caption(f"• {rule}")
                 st.markdown("---")
 
