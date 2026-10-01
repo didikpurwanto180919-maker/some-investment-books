@@ -252,7 +252,7 @@ else:
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
     col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
-    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI ---
+    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI DENGAN LABEL TANGGAL ---
     st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
     
     fig = go.Figure()
@@ -272,23 +272,31 @@ else:
     plot_pred_dates = [last_date] + list(future_dates)
     plot_pred_prices = [latest_close] + list(predicted_prices)
     
+    # Menambahkan label teks tanggal & harga di atas titik proyeksi agar tampil langsung di grafik
     fig.add_trace(go.Scatter(
         x=plot_pred_dates,
         y=plot_pred_prices,
-        mode='lines+markers',
+        mode='lines+markers+text',
+        text=[f"<b>{p:,.1f}</b><br>{d.strftime('%d %b')}" for p, d in zip(plot_pred_prices, plot_pred_dates)],
+        textposition="top center",
         line=dict(color='#00FF7F', width=2.5, dash='dash'),
-        marker=dict(size=8, color='#00FF7F'),
+        marker=dict(size=9, color='#00FF7F'),
         name='Proyeksi Tren AI (5 Hari)'
     ))
     
     fig.update_layout(
         title=f'Pergerakan & Proyeksi Harga Saham {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
         yaxis_title='Harga Saham (IDR)',
-        xaxis_title='Tanggal Transaksi',
+        xaxis_title='Tanggal Transaksi & Proyeksi',
         template='plotly_dark',
-        height=550,
+        height=580,
         xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            type='date',
+            tickformat='%b %Y',
+            hoverformat='%d %b %Y'
+        )
     )
     st.plotly_chart(fig, use_container_width=True)
 
