@@ -6,11 +6,14 @@ import plotly.graph_objects as go
 import feedparser
 import urllib.parse
 from streamlit_autorefresh import st_autorefresh
-from sklearn.ensemble import RandomForestRegressor
+
+# Mengimpor model Machine Learning berbasis Gradient Boosting (XGBoost & LightGBM)
+from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
-    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard (IDX)",
+    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard (XGBoost & LightGBM)",
     page_icon="📈",
     layout="wide"
 )
@@ -80,6 +83,13 @@ selected_ticker_default = popular_stocks[stock_choice]
 ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham IDX Lainnya (Format: KODE.JK)", value=selected_ticker_default)
 ticker_symbol = ticker_symbol.strip().upper()
 
+# Opsi Pemilihan Algoritma Machine Learning
+ml_engine = st.sidebar.selectbox(
+    "Pilih Algoritma AI / Machine Learning",
+    ["Ensemble (XGBoost + LightGBM Hybrid)", "XGBoost Regressor", "LightGBM Regressor"],
+    index=0
+)
+
 period_option = st.sidebar.selectbox("Rentang Waktu", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
 interval_option = st.sidebar.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
@@ -88,14 +98,14 @@ st.sidebar.subheader("📚 Sumber Referensi & Berita Resmi")
 st.sidebar.info(
     "Dasbor ini mengintegrasikan:\n"
     "- **Kontan, CNBC Indonesia, Bisnis.com** (Berita Real-Time)\n"
-    "- **Keterbukaan Informasi IDX & IDNFinancials** (Data Fundamental)\n"
-    "- **Random Forest Machine Learning** (Prediksi Non-Linear Adaptif)\n"
+    "- **Keterbukaan Informasi IDX** (Data Fundamental)\n"
+    "- **XGBoost & LightGBM Machine Learning** (Prediksi Cepat & Meredam Noise Pasar)\n"
     "- *The Intelligent Investor* & *Encyclopedia of Chart Patterns*"
 )
 
-st.title("📊 Dasbor Prediksi AI (Random Forest), Analisis Berita & Filter Saham Presisi")
+st.title("📊 Dasbor Prediksi AI (XGBoost/LightGBM), Analisis Berita & Filter Saham")
 st.markdown(
-    f"Sistem analisis tren harga otomatis berbasis *Machine Learning* non-linear dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis berbasis *Gradient Boosting Machine Learning* dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -165,7 +175,7 @@ realtime_news = fetch_realtime_news(ticker_symbol)
 if data.empty or len(data) < 30:
     st.warning(
         f"⚠️ Data untuk ticker **{ticker_symbol}** dengan rentang waktu **{period_option}** tidak mencukupi. "
-        f"Model Random Forest & indikator teknikal memerlukan minimal 30 baris data historis. "
+        f"Model Machine Learning & indikator teknikal memerlukan minimal 30 baris data historis. "
         f"Silakan pilih **Rentang Waktu** yang lebih panjang (misalnya **6mo** atau **1y**)."
     )
 else:
@@ -229,23 +239,28 @@ else:
                 if nk in title_lower:
                     news_sentiment_score -= 1
 
-        # --- SISTEM PREDIKSI MACHINE LEARNING (RANDOM FOREST REGRESSOR) ---
+        # --- SISTEM PREDIKSI MACHINE LEARNING (XGBOOST / LIGHTGBM / HYBRID) ---
         df_pred = data.reset_index()
         df_pred['Days'] = np.arange(len(df_pred))
         
-        # Feature Engineering Non-Linear untuk Random Forest
+        # Feature Engineering untuk Time Series Forecasting
         df_pred['Lag1'] = df_pred['Close'].shift(1)
         df_pred['Lag2'] = df_pred['Close'].shift(2)
         df_pred['Rolling_Mean_5'] = df_pred['Close'].rolling(5).mean()
+        df_pred['Rolling_Std_5'] = df_pred['Close'].rolling(5).std()
         df_pred.dropna(inplace=True)
 
-        features = ['Days', 'Lag1', 'Lag2', 'Rolling_Mean_5']
+        features = ['Days', 'Lag1', 'Lag2', 'Rolling_Mean_5', 'Rolling_Std_5']
         X = df_pred[features]
         y = df_pred['Close']
 
-        # Training Model Random Forest Non-Linear
-        rf_model = RandomForestRegressor(n_estimators=150, max_depth=10, random_state=42)
-        rf_model.fit(X, y)
+        # Inisialisasi Model ML Sesuai Pilihan Pengguna
+        xgb_model = XGBRegressor(n_estimators=100, learning_rate=0.05, max_depth=5, random_state=42)
+        lgb_model = LGBMRegressor(n_estimators=100, learning_rate=0.05, max_depth=5, random_state=42, verbose=-1)
+
+        # Training Model
+        xgb_model.fit(X, y)
+        lgb_model.fit(X, y)
 
         # Prediksi Rekursif Multi-Step (5 Hari Ke Depan)
         last_date = data.index[-1]
@@ -260,12 +275,24 @@ else:
                 next_day_idx, 
                 last_row_features['Lag1'], 
                 last_row_features['Lag2'], 
-                last_row_features['Rolling_Mean_5']
+                last_row_features['Rolling_Mean_5'],
+                last_row_features['Rolling_Std_5']
             ]], columns=features)
             
-            pred_val = rf_model.predict(current_input)[0]
+            # Prediksi berdasarkan engine yang dipilih
+            pred_xgb = xgb_model.predict(current_input)[0]
+            pred_lgb = lgb_model.predict(current_input)[0]
+            
+            if ml_engine == "XGBoost Regressor":
+                pred_val = pred_xgb
+            elif ml_engine == "LightGBM Regressor":
+                pred_val = pred_lgb
+            else: # Hybrid Ensemble (Rata-rata tertimbang XGBoost & LightGBM)
+                pred_val = (0.5 * pred_xgb) + (0.5 * pred_lgb)
+
             predicted_prices.append(pred_val)
             
+            # Update lag untuk iterasi hari berikutnya
             last_row_features['Lag2'] = last_row_features['Lag1']
             last_row_features['Lag1'] = pred_val
             last_row_features['Days'] = next_day_idx
@@ -284,12 +311,12 @@ else:
         # Metrik Utama
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Harga Terakhir", f"{latest_close:,.2f}", f"{pct_change:+.2f}%")
-        col2.metric("Prediksi Target (AI RF - 5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
+        col2.metric(f"Prediksi AI ({ml_engine.split()[0]} - 5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
         col3.metric("RSI (14)", f"{latest_rsi:.2f}")
         col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
         # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI AI ---
-        st.subheader(f"📉 Grafik Harga & Proyeksi Non-Linear Random Forest: {ticker_symbol}")
+        st.subheader(f"📉 Grafik Harga & Proyeksi Gradient Boosting ({ml_engine}): {ticker_symbol}")
         
         fig = go.Figure()
         
@@ -319,11 +346,11 @@ else:
             textposition="top center",
             line=dict(color='#00FF7F', width=2.5, dash='dash'),
             marker=dict(size=9, color='#00FF7F'),
-            name='Proyeksi Non-Linear RF (5 Hari)'
+            name=f'Proyeksi AI ({ml_engine.split()[0]})'
         ))
         
         fig.update_layout(
-            title=f'Pergerakan & Proyeksi AI Random Forest {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
+            title=f'Pergerakan & Proyeksi AI {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
             yaxis_title='Harga Saham (IDR)',
             xaxis_title='Rentang Waktu Transaksi & Proyeksi',
             template='plotly_dark',
@@ -391,7 +418,7 @@ else:
                 signals.append("✔ **RSI Oversold (< 30)**: Potensi kuat pembalikan arah naik (*rebound*).")
             elif latest_rsi > 70:
                 score -= 2
-                signals.append("✖ **RSI Overbought (> 70)**: Risiko koreksi tinggi sesuai aturan *throwback*[cite: 6].")
+                signals.append("✖ **RSI Overbought (> 70)**: Risiko koreksi tinggi sesuai aturan *throwback*.")
             else:
                 signals.append("ℹ **RSI Netral**: Pasar bergerak stabil di koridor normal.")
                 
@@ -414,10 +441,10 @@ else:
 
             if pred_pct_change > 0:
                 score += 1
-                signals.append(f"✔ **Proyeksi Tren AI (Random Forest)**: Model memproyeksikan kenaikan **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
+                signals.append(f"✔ **Proyeksi Tren AI ({ml_engine})**: Model memproyeksikan kenaikan **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
             else:
                 score -= 1
-                signals.append(f"✖ **Proyeksi Tren AI (Random Forest)**: Model memproyeksikan koreksi **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
+                signals.append(f"✖ **Proyeksi Tren AI ({ml_engine})**: Model memproyeksikan koreksi **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
 
             for sig in signals:
                 st.markdown(f"- {sig}")
