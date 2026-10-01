@@ -21,62 +21,77 @@ st.set_page_config(
 # Konfigurasi Auto-Refresh Real-Time (Setiap 60 detik)
 st_autorefresh(interval=60 * 1000, key="datarefresh")
 
-# --- KUSTOMISASI CSS TEMA NEON FUTURISTIK ---
+# --- KUSTOMISASI CSS TEMA NEON FUTURISTIK & KETERBACAAN TEKS ---
 st.markdown("""
     <style>
-    /* Global Background & Font */
+    /* Global Background & Font Terang */
     .stApp {
-        background-color: #0b0f19;
-        color: #00ffcc;
+        background-color: #05070c;
+        color: #ffffff;
         font-family: 'Courier New', Courier, monospace;
     }
     
-    /* Neon Glow Headers */
+    /* Neon Glow Headers yang Lebih Tajam */
     h1, h2, h3 {
         color: #00ffcc !important;
-        text-shadow: 0 0 10px rgba(0, 255, 204, 0.6), 0 0 20px rgba(0, 255, 204, 0.3);
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.8);
+        font-weight: bold;
     }
     
-    /* Sidebar Styling */
+    /* Sidebar Styling agar Kontras */
     section[data-testid="stSidebar"] {
-        background-color: #121826;
-        border-right: 1px solid #00ffcc33;
+        background-color: #0e1320;
+        border-right: 2px solid #00ffcc55;
     }
     
-    /* Metric Cards dengan Efek Pendaran Neon */
+    /* Memperjelas Semua Label & Teks di Sidebar */
+    section[data-testid="stSidebar"] label, 
+    section[data-testid="stSidebar"] .stMarkdown, 
+    section[data-testid="stSidebar"] span {
+        color: #ffffff !important;
+        font-weight: bold !important;
+    }
+    
+    /* Kotak Input, Selectbox, dan Text Input Lebih Terang */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: #161f33 !important;
+        color: #00ffcc !important;
+        font-weight: bold !important;
+        border: 1px solid #00ffcc !important;
+    }
+    
+    /* Placeholder & Teks Dropdown */
+    div[data-baseweb="select"] span {
+        color: #00ffcc !important;
+        font-weight: bold !important;
+    }
+    
+    /* Metric Cards dengan Pendaran Neon Jelas */
     div[data-testid="stMetric"] {
-        background: rgba(18, 24, 38, 0.7);
-        border: 1px solid #00ffcc55;
+        background: rgba(14, 19, 32, 0.9);
+        border: 1px solid #00ffcc;
         padding: 15px;
         border-radius: 10px;
-        box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
-        transition: 0.3s ease-in-out;
-    }
-    div[data-testid="stMetric"]:hover {
-        border-color: #00ffcc;
-        box-shadow: 0 0 25px rgba(0, 255, 204, 0.4);
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
     }
     div[data-testid="stMetric"] label {
-        color: #a0aec0 !important;
+        color: #00ffcc !important;
+        font-weight: bold !important;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        color: #00ffcc !important;
-        text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
+        color: #ffffff !important;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.8);
+        font-weight: bold !important;
     }
     
-    /* Expander dan Kotak Informasi */
-    .streamlit-expanderHeader {
-        background-color: #121826;
-        border: 1px solid #00ffcc33;
+    /* Memperjelas Teks Berita Real-Time di Bawah */
+    .stMarkdown a {
         color: #00ffcc !important;
-        border-radius: 5px;
+        font-weight: bold !important;
+        text-decoration: underline;
     }
-    
-    /* Styling Tombol / Input */
-    .stTextInput > div > div > input, .stSelectbox > div > div {
-        background-color: #121826 !important;
-        color: #00ffcc !important;
-        border: 1px solid #00ffcc55 !important;
+    p, span, li {
+        color: #e2e8f0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -409,8 +424,8 @@ else:
             yaxis_title='Harga (IDR)',
             xaxis_title='Timeline',
             template='plotly_dark',
-            paper_bgcolor='#0b0f19',
-            plot_bgcolor='#121826',
+            paper_bgcolor='#05070c',
+            plot_bgcolor='#0e1320',
             height=550,
             xaxis_rangeslider_visible=False,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
