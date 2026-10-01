@@ -1,0 +1,43 @@
+{
+  "reference_books": [
+    {
+      "title": "Visual Guide to Chart Patterns",
+      "author": "Thomas N. Bulkowski",
+      "year": 2012,
+      "core_principles": [
+        "Validasi breakout memerlukan konfirmasi volume perdagangan yang tinggi[cite: 6].",
+        "Throwback dan pullback sering terjadi setelah breakout; perhatikan area support/resistance sebelumnya[cite: 6].",
+        "Target harga minimal dihitung dengan mengukur tinggi pola dari titik breakout[cite: 6]."
+      ]
+    },
+    {
+      "title": "The Intelligent Investor",
+      "author": "Benjamin Graham",
+      "year": 2006,
+      "core_principles": [
+        "Margin of safety (Margin Keamanan) adalah inti dari investasi jangka panjang yang sukses.",
+        "Pisahkan spekulasi dari analisis fundamental yang ketat."
+      ]
+    },
+    {
+      "title": "Trading in the Zone",
+      "author": "Mark Douglas",
+      "year": 2000,
+      "core_principles": [
+        "Probabilitas dan disiplin psikologis dalam menerima risiko adalah kunci konsistensi trading."
+      ]
+    }
+  ],
+  "patterns_rules": {
+    "Double Bottom": {
+      "success_rate_bullish": "75%",
+      "average_rise": "38%",
+      "description": "Pola pembalikan arah bullish yang ditandai oleh dua lembah terendah pada level yang hampir sama."
+    },
+    "Ascending Triangle": {
+      "success_rate_bullish": "73%",
+      "average_rise": "35%",
+      "description": "Pola kelanjutan tren naik dengan batas atas datar (resistance) dan garis tren bawah menanjak (higher lows)."
+    }
+  }
+}
