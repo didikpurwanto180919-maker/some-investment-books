@@ -139,7 +139,7 @@ def load_book_references():
 
 book_data = load_book_references()
 
-# Sidebar Navigasi & Input Parameter Saham
+# Sidebar Navigasi & Input Parameter Saham (Daftar Saham Diperluas)
 st.sidebar.header("⚡ NEON CONFIG: SENSOR PASAR")
 
 popular_stocks = {
@@ -147,23 +147,40 @@ popular_stocks = {
     "BBRI – Bank Rakyat Indonesia Tbk": "BBRI.JK",
     "BMRI – Bank Mandiri Tbk": "BMRI.JK",
     "BBNI – Bank Negara Indonesia Tbk": "BBNI.JK",
+    "BRIS – Bank Syariah Indonesia Tbk": "BRIS.JK",
     "ASII – Astra International Tbk": "ASII.JK",
     "TLKM – Telkom Indonesia Tbk": "TLKM.JK",
     "UNVR – Unilever Indonesia Tbk": "UNVR.JK",
     "ICBP – Indofood CBP Sukses Makmur Tbk": "ICBP.JK",
     "INDF – Indofood Sukses Makmur Tbk": "INDF.JK",
-    "JSMR – Jasa Marga Tbk": "JSMR.JK",
+    "KLBF – Kalbe Farma Tbk": "KLBF.JK",
+    "GOTO – GoTo Gojek Tokopedia Tbk": "GOTO.JK",
+    "ARTO – Bank Jago Tbk": "ARTO.JK",
     "ADRO – Adaro Energy Indonesia Tbk": "ADRO.JK",
-    "PGAS – Perusahaan Gas Negara Tbk": "PGAS.JK",
-    "INKP – Indah Kiat Pulp & Paper Tbk": "INKP.JK",
-    "MDKA – Merdeka Copper Gold Tbk": "MDKA.JK",
+    "PTBA – Bukit Asam Tbk": "PTBA.JK",
     "ANTM – Aneka Tambang Tbk": "ANTM.JK",
-    "MYOR – Mayora Indah Tbk": "MYOR.JK",
+    "MDKA – Merdeka Copper Gold Tbk": "MDKA.JK",
+    "INCO – Vale Indonesia Tbk": "INCO.JK",
+    "PGAS – Perusahaan Gas Negara Tbk": "PGAS.JK",
+    "JSMR – Jasa Marga Tbk": "JSMR.JK",
+    "INKP – Indah Kiat Pulp & Paper Tbk": "INKP.JK",
+    "TKIM – Pabrik Kertas Tjiwi Kimia Tbk": "TKIM.JK",
+    "SMGR – Semen Indonesia Tbk": "SMGR.JK",
     "INTP – Indocement Tunggal Prakarsa Tbk": "INTP.JK",
-    "SMGR – Semen Indonesia Tbk": "SMGR.JK"
+    "MYOR – Mayora Indah Tbk": "MYOR.JK",
+    "UNTR – United Tractors Tbk": "UNTR.JK",
+    "MEDC – Medco Energi Internasional Tbk": "MEDC.JK",
+    "HRUM – Harum Energy Tbk": "HRUM.JK",
+    "MAPI – Mitra Adiperkasa Tbk": "MAPI.JK",
+    "EXCL – XL Axiata Tbk": "EXCL.JK",
+    "ISAT – Indosat Tbk": "ISAT.JK",
+    "TOWR – Sarana Menara Nusantara Tbk": "TOWR.JK",
+    "BREN – Barito Renewables Energy Tbk": "BREN.JK",
+    "AMMN – Amman Mineral Internasional Tbk": "AMMN.JK",
+    "CUAN – Petrindo Jaya Kreasi Tbk": "CUAN.JK"
 }
 
-stock_choice = st.sidebar.selectbox("Pilih Saham Blue Chip BEI", options=list(popular_stocks.keys()))
+stock_choice = st.sidebar.selectbox("Pilih Emiten Unggulan BEI", options=list(popular_stocks.keys()))
 selected_ticker_default = popular_stocks[stock_choice]
 
 ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham IDX (Format: KODE.JK)", value=selected_ticker_default)
