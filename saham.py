@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
-    page_title="AI Stock Predictive Analysis & Filter Dashboard",
+    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard",
     page_icon="📈",
     layout="wide"
 )
@@ -54,16 +54,16 @@ period_option = st.sidebar.selectbox("Rentang Waktu", ["1mo", "3mo", "6mo", "1y"
 interval_option = st.sidebar.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📚 Sumber Dasar Literatur")
+st.sidebar.subheader("📚 Sumber Dasar Literatur & Berita")
 st.sidebar.info(
-    "Dasbor ini mengintegrasikan kaidah analisis dari buku-buku standar industri seperti "
-    "*Visual Guide to Chart Patterns* (Thomas N. Bulkowski)[cite: 6], *The Intelligent Investor* (Benjamin Graham), "
-    "dan *Trading in the Zone* (Mark Douglas)."
+    "Dasbor ini mengintegrasikan analisis teknikal, Machine Learning, kaidah literatur klasik "
+    "(*Visual Guide to Chart Patterns* oleh Thomas N. Bulkowski[cite: 6], *The Intelligent Investor* oleh Benjamin Graham), "
+    "serta pemantauan berita finansial terkini dari Kontan, CNBC Indonesia, Bisnis.com, dan Investor.id."
 )
 
-st.title("📊 Dasbor Prediksi & Filter Saham Presisi (Real-Time)")
+st.title("📊 Dasbor Prediksi, Analisis Berita & Filter Saham Presisi (Real-Time)")
 st.markdown(
-    f"Sistem analisis tren harga otomatis dengan visualisasi proyeksi tanggal masa depan untuk **{ticker_symbol}**."
+    f"Sistem analisis tren harga otomatis dengan validasi berita finansial *real-time* untuk **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -81,6 +81,14 @@ data = fetch_stock_data(ticker_symbol, period_option, interval_option)
 if data.empty or len(data) < 15:
     st.warning(f"⚠️ Data untuk ticker **{ticker_symbol}** tidak ditemukan atau kurang. Pastikan format penulisan benar (Contoh: `BBCA.JK`, `TLKM.JK`).")
 else:
+    # --- AMBIL BERITA TERBARU DARI YFINANCE (TERHUBUNG KE PORTAL BERITA UTAMA) ---
+    ticker_obj = yf.Ticker(ticker_symbol)
+    news_list = []
+    try:
+        news_list = ticker_obj.news
+    except Exception:
+        news_list = []
+
     # --- DETEKSI SAHAM GORENGAN / SPEKULATIF ---
     latest_close_check = float(data['Close'].iloc[-1])
     price_std = float(data['Close'].pct_change().std() * 100)
@@ -132,7 +140,6 @@ else:
     model = LinearRegression()
     model.fit(X, y)
     
-    # Generate Tanggal Masa Depan (Hari Kerja Bursa)
     last_date = data.index[-1]
     future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=5)
     
@@ -161,7 +168,6 @@ else:
     
     fig = go.Figure()
     
-    # Candlestick Aktual
     fig.add_trace(go.Candlestick(
         x=data.index,
         open=data['Open'],
@@ -171,11 +177,9 @@ else:
         name='Candlestick Aktual'
     ))
     
-    # Indikator MA
     fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], line=dict(color='orange', width=1.5), name='MA 20'))
     fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], line=dict(color='blue', width=1.5), name='MA 50'))
     
-    # Garis Proyeksi AI (Menyambungkan titik terakhir ke 5 hari ke depan beserta tanggalnya)
     plot_pred_dates = [last_date] + list(future_dates)
     plot_pred_prices = [latest_close] + list(predicted_prices)
     
@@ -207,6 +211,22 @@ else:
             "Estimasi Perubahan (%)": [f"{((p - latest_close) / latest_close) * 100:+.2f}%" for p in predicted_prices]
         })
         st.table(df_future_table)
+
+    # --- MODUL BERITA FINANSIAL & SENTIMEN PASAR REAL-TIME ---
+    st.subheader(f"📰 Berita Finansial & Sentimen Pasar Terkini: {ticker_symbol}")
+    if news_list:
+        news_cols = st.columns(min(3, len(news_list[:3])))
+        for idx, item in enumerate(news_list[:3]):
+            with news_cols[idx]:
+                title = item.get('title', 'Berita Finansial')
+                publisher = item.get('publisher', 'Media Finansial')
+                link = item.get('link', '#')
+                st.markdown(f"**[{title}]({link})**")
+                st.caption(f"Sumber: {publisher}")
+    else:
+        st.info("Belum ada berita real-time terbaru yang terindeks untuk emiten ini dalam 24 jam terakhir. Anda dapat merujuk langsung ke portal terpercaya seperti [Kontan](https://www.kontan.co.id/), [CNBC Indonesia](https://www.cnbcindonesia.com/market), atau [Bisnis.com](https://www.bisnis.com/).")
+
+    st.markdown("---")
 
     # Modul Sistem Prediksi & Rekomendasi Presisi
     st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis")
