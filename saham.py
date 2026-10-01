@@ -13,13 +13,84 @@ from lightgbm import LGBMRegressor
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
-    page_title="AI Stock Predictive Analysis & News Sentiment Dashboard (XGBoost & LightGBM)",
-    page_icon="📈",
+    page_title="AI Cyber-Stock Predictive Analysis & News Sentiment Dashboard",
+    page_icon="⚡",
     layout="wide"
 )
 
 # Konfigurasi Auto-Refresh Real-Time (Setiap 60 detik)
 st_autorefresh(interval=60 * 1000, key="datarefresh")
+
+# --- KUSTOMISASI CSS TEMA NEON FUTURISTIK ---
+st.markdown("""
+    <style>
+    /* Global Background & Font */
+    .stApp {
+        background-color: #0b0f19;
+        color: #00ffcc;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    
+    /* Neon Glow Headers */
+    h1, h2, h3 {
+        color: #00ffcc !important;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.6), 0 0 20px rgba(0, 255, 204, 0.3);
+    }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #121826;
+        border-right: 1px solid #00ffcc33;
+    }
+    
+    /* Metric Cards dengan Efek Pendaran Neon */
+    div[data-testid="stMetric"] {
+        background: rgba(18, 24, 38, 0.7);
+        border: 1px solid #00ffcc55;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
+        transition: 0.3s ease-in-out;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #00ffcc;
+        box-shadow: 0 0 25px rgba(0, 255, 204, 0.4);
+    }
+    div[data-testid="stMetric"] label {
+        color: #a0aec0 !important;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #00ffcc !important;
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
+    }
+    
+    /* Expander dan Kotak Informasi */
+    .streamlit-expanderHeader {
+        background-color: #121826;
+        border: 1px solid #00ffcc33;
+        color: #00ffcc !important;
+        border-radius: 5px;
+    }
+    
+    /* Styling Tombol / Input */
+    .stTextInput > div > div > input, .stSelectbox > div > div {
+        background-color: #121826 !important;
+        color: #00ffcc !important;
+        border: 1px solid #00ffcc55 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- EFEK SUARA AUDIO NOTIFIKASI REAL-TIME ---
+def play_neon_sound():
+    sound_html = """
+        <audio autoplay>
+          <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+        </audio>
+    """
+    st.markdown(sound_html, unsafe_allow_html=True)
+
+play_neon_sound()
 
 # Data Referensi Buku Literasi Keuangan & Analisis Teknikal (Embedded)
 @st.cache_data
@@ -53,8 +124,8 @@ def load_book_references():
 
 book_data = load_book_references()
 
-# Sidebar Navigasi & Input Parameter Saham (Daftar Lengkap Saham Non-Gorengan / Blue Chip BEI)
-st.sidebar.header("⚙️ Konfigurasi & Pemilihan Saham")
+# Sidebar Navigasi & Input Parameter Saham
+st.sidebar.header("⚡ NEON CONFIG: SENSOR PASAR")
 
 popular_stocks = {
     "BBCA – Bank Central Asia Tbk": "BBCA.JK",
@@ -77,35 +148,29 @@ popular_stocks = {
     "SMGR – Semen Indonesia Tbk": "SMGR.JK"
 }
 
-stock_choice = st.sidebar.selectbox("Pilih Saham Non-Gorengan (Blue Chip)", options=list(popular_stocks.keys()))
+stock_choice = st.sidebar.selectbox("Pilih Saham Blue Chip BEI", options=list(popular_stocks.keys()))
 selected_ticker_default = popular_stocks[stock_choice]
 
-ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham IDX Lainnya (Format: KODE.JK)", value=selected_ticker_default)
+ticker_symbol = st.sidebar.text_input("Atau Ketik Kode Saham IDX (Format: KODE.JK)", value=selected_ticker_default)
 ticker_symbol = ticker_symbol.strip().upper()
 
 # Opsi Pemilihan Algoritma Machine Learning
 ml_engine = st.sidebar.selectbox(
-    "Pilih Algoritma AI / Machine Learning",
+    "Pilih Neural Engine AI",
     ["Ensemble (XGBoost + LightGBM Hybrid)", "XGBoost Regressor", "LightGBM Regressor"],
     index=0
 )
 
-period_option = st.sidebar.selectbox("Rentang Waktu", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
-interval_option = st.sidebar.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
+period_option = st.sidebar.selectbox("Rentang Waktu Sensor", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
+interval_option = st.sidebar.selectbox("Interval Candle", ["1d", "1wk", "1mo"], index=0)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📚 Sumber Referensi & Berita Resmi")
-st.sidebar.info(
-    "Dasbor ini mengintegrasikan:\n"
-    "- **Kontan, CNBC Indonesia, Bisnis.com** (Berita Real-Time)\n"
-    "- **Keterbukaan Informasi IDX** (Data Fundamental)\n"
-    "- **XGBoost & LightGBM Machine Learning** (Prediksi Cepat & Meredam Noise Pasar)\n"
-    "- *The Intelligent Investor* & *Encyclopedia of Chart Patterns*"
-)
+st.sidebar.subheader("📡 Status Sistem Real-Time")
+st.sidebar.success("🟢 Auto-Refresh Aktif (60s)\n🔊 Audio Alert Enabled\n⚡ XGBoost/LightGBM Synced")
 
-st.title("📊 Dasbor Prediksi AI (XGBoost/LightGBM), Analisis Berita & Filter Saham")
+st.title("⚡ NEON AI: Live Stock Predictive & Sentiment Dashboard")
 st.markdown(
-    f"Sistem analisis tren harga otomatis berbasis *Gradient Boosting Machine Learning* dengan validasi berita finansial *real-time* untuk emiten **{ticker_symbol}**."
+    f"Sistem analitik pasar saham real-time dengan pemindaian berita otomatis dan prediksi *Gradient Boosting* untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=60)
@@ -118,7 +183,7 @@ def fetch_stock_data(ticker, period, interval):
     except Exception as e:
         return pd.DataFrame()
 
-# --- FUNGSI FETCH BERITA REAL-TIME DARI RSS (KONTAN, CNBC, BISNIS, IDX) ---
+# --- FUNGSI FETCH BERITA REAL-TIME DARI RSS ---
 @st.cache_data(ttl=300)
 def fetch_realtime_news(ticker):
     clean_code = ticker.replace(".JK", "").lower()
@@ -175,8 +240,7 @@ realtime_news = fetch_realtime_news(ticker_symbol)
 if data.empty or len(data) < 30:
     st.warning(
         f"⚠️ Data untuk ticker **{ticker_symbol}** dengan rentang waktu **{period_option}** tidak mencukupi. "
-        f"Model Machine Learning & indikator teknikal memerlukan minimal 30 baris data historis. "
-        f"Silakan pilih **Rentang Waktu** yang lebih panjang (misalnya **6mo** atau **1y**)."
+        f"Model Machine Learning memerlukan minimal 30 baris data historis. Silakan pilih rentang waktu yang lebih panjang."
     )
 else:
     # Perhitungan Indikator Teknikal
@@ -194,13 +258,12 @@ else:
     data['MACD'] = exp1 - exp2
     data['Signal_Line'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-    # Membersihkan baris kosong (NaN) hasil kalkulasi indikator
     data.dropna(inplace=True)
     
     if data.empty or len(data) < 10:
-        st.warning("⚠️ Data terlalu sedikit setelah dibersihkan dari nilai kosong (NaN). Harap gunakan rentang waktu yang lebih panjang.")
+        st.warning("⚠️ Data terlalu sedikit setelah dibersihkan dari nilai kosong (NaN).")
     else:
-        # --- DETEKSI SAHAM GORENGAN / SPEKULATIF ---
+        # --- DETEKSI SAHAM GORENGAN ---
         latest_close_check = float(data['Close'].iloc[-1])
         price_std = float(data['Close'].pct_change().std() * 100)
         
@@ -210,10 +273,10 @@ else:
         if ticker_symbol.endswith('.JK'):
             if latest_close_check < 150:
                 is_potential_gorengan = True
-                gorengan_reasons.append("Harga saham gocap / nominal sangat kecil (< Rp 150).")
+                gorengan_reasons.append("Harga saham gocap (< Rp 150).")
             if price_std > 5.0:
                 is_potential_gorengan = True
-                gorengan_reasons.append(f"Volatilitas harga harian sangat ekstrem ({price_std:.2f}%).")
+                gorengan_reasons.append(f"Volatilitas ekstrem ({price_std:.2f}%).")
 
         latest_close = float(data['Close'].iloc[-1])
         prev_close = float(data['Close'].iloc[-2])
@@ -225,7 +288,7 @@ else:
         latest_macd = float(data['MACD'].iloc[-1])
         latest_signal = float(data['Signal_Line'].iloc[-1])
 
-        # --- ANALISIS SENTIMEN BERITA REAL-TIME (KEYWORD SCORING) ---
+        # --- ANALISIS SENTIMEN BERITA REAL-TIME ---
         news_sentiment_score = 0
         positive_keywords = ["naik", "lonjak", "tumbuh", "laba", "dividen", "positif", "beli", "akuisisi", "ekspansi", "rebound", "menguat"]
         negative_keywords = ["anjlok", "turun", "rugi", "koreksi", "jual", "beban", "sanksi", "melemah", "lesu", "default"]
@@ -239,11 +302,10 @@ else:
                 if nk in title_lower:
                     news_sentiment_score -= 1
 
-        # --- SISTEM PREDIKSI MACHINE LEARNING (XGBOOST / LIGHTGBM / HYBRID) ---
+        # --- MACHINE LEARNING (XGBOOST / LIGHTGBM) ---
         df_pred = data.reset_index()
         df_pred['Days'] = np.arange(len(df_pred))
         
-        # Feature Engineering untuk Time Series Forecasting
         df_pred['Lag1'] = df_pred['Close'].shift(1)
         df_pred['Lag2'] = df_pred['Close'].shift(2)
         df_pred['Rolling_Mean_5'] = df_pred['Close'].rolling(5).mean()
@@ -254,15 +316,12 @@ else:
         X = df_pred[features]
         y = df_pred['Close']
 
-        # Inisialisasi Model ML Sesuai Pilihan Pengguna
         xgb_model = XGBRegressor(n_estimators=100, learning_rate=0.05, max_depth=5, random_state=42)
         lgb_model = LGBMRegressor(n_estimators=100, learning_rate=0.05, max_depth=5, random_state=42, verbose=-1)
 
-        # Training Model
         xgb_model.fit(X, y)
         lgb_model.fit(X, y)
 
-        # Prediksi Rekursif Multi-Step (5 Hari Ke Depan)
         last_date = data.index[-1]
         future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=5)
         
@@ -279,7 +338,6 @@ else:
                 last_row_features['Rolling_Std_5']
             ]], columns=features)
             
-            # Prediksi berdasarkan engine yang dipilih
             pred_xgb = xgb_model.predict(current_input)[0]
             pred_lgb = lgb_model.predict(current_input)[0]
             
@@ -287,12 +345,11 @@ else:
                 pred_val = pred_xgb
             elif ml_engine == "LightGBM Regressor":
                 pred_val = pred_lgb
-            else: # Hybrid Ensemble (Rata-rata tertimbang XGBoost & LightGBM)
+            else: 
                 pred_val = (0.5 * pred_xgb) + (0.5 * pred_lgb)
 
             predicted_prices.append(pred_val)
             
-            # Update lag untuk iterasi hari berikutnya
             last_row_features['Lag2'] = last_row_features['Lag1']
             last_row_features['Lag1'] = pred_val
             last_row_features['Days'] = next_day_idx
@@ -300,23 +357,21 @@ else:
         predicted_target = float(predicted_prices[-1])
         pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
 
-        # Peringatan Jika Terdeteksi Saham Gorengan
         if is_potential_gorengan:
             st.error(
-                f"🚨 **PERINGATAN RISIKO TINGGI (INDIKASI SAHAM GORENGAN/SPEKULATIF)**: "
-                f"Saham **{ticker_symbol}** terdeteksi memiliki karakteristik berisiko tinggi karena: " + ", ".join(gorengan_reasons) + 
-                " Sesuai prinsip *The Intelligent Investor* (Benjamin Graham), hindari saham spekulatif tanpa fundamental yang jelas."
+                f"🚨 **PERINGATAN RISIKO TINGGI (SAHAM GORENGAN)**: "
+                f"Emiten **{ticker_symbol}** terdeteksi memiliki anomali: " + ", ".join(gorengan_reasons)
             )
 
-        # Metrik Utama
+        # Metrik Utama (Gaya Neon)
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Harga Terakhir", f"{latest_close:,.2f}", f"{pct_change:+.2f}%")
-        col2.metric(f"Prediksi AI ({ml_engine.split()[0]} - 5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
+        col2.metric(f"Prediksi AI (5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
         col3.metric("RSI (14)", f"{latest_rsi:.2f}")
-        col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
+        col4.metric("Sentimen Real-Time", "Bullish 🟢" if news_sentiment_score > 0 else ("Bearish 🔴" if news_sentiment_score < 0 else "Neutral 🟡"))
 
-        # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI AI ---
-        st.subheader(f"📉 Grafik Harga & Proyeksi Gradient Boosting ({ml_engine}): {ticker_symbol}")
+        # --- GRAFIK PLOTLY TEMA GELAP NEON ---
+        st.subheader(f"📈 Grafik Candlestick & Proyeksi Neon AI: {ticker_symbol}")
         
         fig = go.Figure()
         
@@ -326,17 +381,17 @@ else:
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
-            name='Candlestick Aktual'
+            name='Aktual Candle'
         ))
         
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], line=dict(color='orange', width=1.5), name='MA 20'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], line=dict(color='blue', width=1.5), name='MA 50'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], line=dict(color='#ff007f', width=1.5), name='MA 20'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], line=dict(color='#00ffff', width=1.5), name='MA 50'))
         
         plot_pred_dates = [last_date] + list(future_dates)
         plot_pred_prices = [latest_close] + list(predicted_prices)
         
         labels_text = [""] * len(plot_pred_prices)
-        labels_text[-1] = f"<b>Target 5 Hari: {predicted_target:,.0f}</b>"
+        labels_text[-1] = f"<b>Target: {predicted_target:,.0f}</b>"
 
         fig.add_trace(go.Scatter(
             x=plot_pred_dates,
@@ -344,139 +399,68 @@ else:
             mode='lines+markers+text',
             text=labels_text,
             textposition="top center",
-            line=dict(color='#00FF7F', width=2.5, dash='dash'),
-            marker=dict(size=9, color='#00FF7F'),
-            name=f'Proyeksi AI ({ml_engine.split()[0]})'
+            line=dict(color='#00ffcc', width=2.5, dash='dash'),
+            marker=dict(size=9, color='#00ffcc'),
+            name='Proyeksi AI'
         ))
         
         fig.update_layout(
-            title=f'Pergerakan & Proyeksi AI {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
-            yaxis_title='Harga Saham (IDR)',
-            xaxis_title='Rentang Waktu Transaksi & Proyeksi',
+            title=f'Analisis Proyeksi Harga {ticker_symbol} Menuju {future_dates[-1].strftime("%d %b %Y")}',
+            yaxis_title='Harga (IDR)',
+            xaxis_title='Timeline',
             template='plotly_dark',
-            height=580,
+            paper_bgcolor='#0b0f19',
+            plot_bgcolor='#121826',
+            height=550,
             xaxis_rangeslider_visible=False,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(
-                type='date',
-                tickformat='%b %Y',
-                hoverformat='%d %b %Y'
-            )
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Tabel Detail Tanggal Prediksi
-        with st.expander("📅 Lihat Detail Proyeksi Harga Berdasarkan Tanggal (5 Hari Ke Depan)"):
+        # Tabel Detail Prediksi
+        with st.expander("📅 Rincian Target Harga Harian (5 Hari Mendatang)"):
             df_future_table = pd.DataFrame({
-                "Tanggal Proyeksi": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
-                "Prediksi Harga Target": [f"{p:,.2f}" for p in predicted_prices],
-                "Estimasi Perubahan (%)": [f"{((p - latest_close) / latest_close) * 100:+.2f}%" for p in predicted_prices]
+                "Tanggal": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
+                "Target Harga AI": [f"{p:,.2f}" for p in predicted_prices],
+                "Est. Perubahan (%)": [f"{((p - latest_close) / latest_close) * 100:+.2f}%" for p in predicted_prices]
             })
             st.table(df_future_table)
 
-        # --- MODUL BERITA FINANSIAL & SENTIMEN PASAR REAL-TIME TERINTEGRASI ---
-        st.subheader(f"📰 Berita Real-Time (Kontan, CNBC, Bisnis, & Keterbukaan IDX): {ticker_symbol}")
+        # --- BERITA FINANSIAL REAL-TIME ---
+        st.subheader(f"📡 Berita Finansial & Sentimen Real-Time: {ticker_symbol}")
         if realtime_news:
             news_cols = st.columns(min(3, len(realtime_news[:3])))
             for idx, item in enumerate(realtime_news[:3]):
                 with news_cols[idx]:
-                    title = item.get('title', 'Berita Finansial')
-                    publisher = item.get('publisher', 'Portal Berita')
-                    link = item.get('link', '#')
-                    date_pub = item.get('date', '')
-                    st.markdown(f"**[{title}]({link})**")
-                    st.caption(f"📌 Sumber: {publisher} | {date_pub}")
+                    st.markdown(f"**[{item['title']}]({item['link']})**")
+                    st.caption(f"📌 {item['publisher']} | {item['date']}")
         else:
-            st.info("Belum ada berita real-time spesifik yang terindeks dalam beberapa hari terakhir.")
+            st.info("Tidak ada berita real-time baru yang terindeks.")
 
         st.markdown("---")
-
-        # Modul Sistem Prediksi & Rekomendasi Presisi
-        st.subheader("🎯 Sistem Prediksi & Validasi Keputusan Otomatis (Teknikal + Berita + AI)")
+        st.subheader("🎯 Sistem Rekomendasi Sinyal Otomatis")
         
         col_rec1, col_rec2 = st.columns([2, 1])
-        
         with col_rec1:
-            st.markdown("### Analisis Probabilitas Arah Harga")
-            
             score = 0
-            signals = []
-            
-            if is_potential_gorengan:
-                score -= 3
-                signals.append("✖ **Peringatan Sistem**: Saham dikategorikan spekulatif tinggi, mengabaikan analisis teknikal murni.")
+            if latest_close > latest_ma20: score += 1
+            if latest_rsi < 30: score += 2
+            elif latest_rsi > 70: score -= 2
+            if latest_macd > latest_signal: score += 1
+            if news_sentiment_score > 0: score += 1
+            if pred_pct_change > 0: score += 1
 
-            if latest_close > latest_ma20:
-                score += 1
-                signals.append("✔ **Harga di atas MA20**: Momentum jangka pendek positif.")
-            else:
-                score -= 1
-                signals.append("✖ **Harga di bawah MA20**: Tekanan jual jangka pendek.")
-                
-            if latest_rsi < 30:
-                score += 2
-                signals.append("✔ **RSI Oversold (< 30)**: Potensi kuat pembalikan arah naik (*rebound*).")
-            elif latest_rsi > 70:
-                score -= 2
-                signals.append("✖ **RSI Overbought (> 70)**: Risiko koreksi tinggi sesuai aturan *throwback*.")
-            else:
-                signals.append("ℹ **RSI Netral**: Pasar bergerak stabil di koridor normal.")
-                
-            if latest_macd > latest_signal:
-                score += 1
-                signals.append("✔ **MACD Bullish Crossover**: Garis MACD di atas garis sinyal.")
-            else:
-                score -= 1
-                signals.append("✖ **MACD Bearish Crossover**: Tekanan tren menurun mendominasi.")
-
-            # Integrasi Sentimen Berita Real-Time ke Scoring
-            if news_sentiment_score > 0:
-                score += 1
-                signals.append("✔ **Sentimen Berita Real-Time Positif**: Berita terkini bernada akumulatif/ekspansi.")
-            elif news_sentiment_score < 0:
-                score -= 1
-                signals.append("✖ **Sentimen Berita Real-Time Negatif**: Berita terkini memuat sentimen koreksi.")
-            else:
-                signals.append("ℹ **Sentimen Berita Netral**: Tidak ada anomali berita fundamental ekstrem.")
-
-            if pred_pct_change > 0:
-                score += 1
-                signals.append(f"✔ **Proyeksi Tren AI ({ml_engine})**: Model memproyeksikan kenaikan **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
-            else:
-                score -= 1
-                signals.append(f"✖ **Proyeksi Tren AI ({ml_engine})**: Model memproyeksikan koreksi **{pred_pct_change:.2f}%** hingga tanggal **{future_dates[-1].strftime('%d %b %Y')}**.")
-
-            for sig in signals:
-                st.markdown(f"- {sig}")
-                
-            if is_potential_gorengan:
-                prediction_direction = "BERISIKO TINGGI (SPEKULATIF)"
-                recommendation = "AVOID / JANGAN DIBELI"
-                rec_color = "red"
-            elif score >= 2:
-                prediction_direction = "TREN NAIK (BULLISH)"
-                recommendation = "STRONG BUY / AKUMULASI"
-                rec_color = "green"
+            if score >= 2:
+                rec_text = "STRONG BUY / AKUMULASI 🟢"
             elif score <= -2:
-                prediction_direction = "TREN TURUN (BEARISH)"
-                recommendation = "SELL / TAKE PROFIT"
-                rec_color = "red"
+                rec_text = "SELL / TAKE PROFIT 🔴"
             else:
-                prediction_direction = "KONSOLIDASI / SIDEWAYS"
-                recommendation = "HOLD / WAIT & SEE"
-                rec_color = "orange"
+                rec_text = "HOLD / WAIT & SEE 🟡"
 
-            st.markdown(f"### Hasil Prediksi Arah: <span style='color:{rec_color}'>{prediction_direction}</span>", unsafe_allow_html=True)
-            st.markdown(f"### Rekomendasi Aksi: <span style='color:{rec_color}'>{recommendation}</span>", unsafe_allow_html=True)
+            st.markdown(f"### Rekomendasi Aksi: **{rec_text}**")
+            st.write(f"Skor Agregat Sistem: **{score} / 6**")
 
         with col_rec2:
-            st.markdown("### 📖 Referensi Buku Terhubung")
-            if book_data.get("reference_books"):
-                for book in book_data["reference_books"]:
-                    st.markdown(f"**{book['title']}** ({book['year']}) — *{book['author']}*")
-                    for rule in book['core_principles']:
-                        st.caption(f"• {rule}")
-                    st.markdown("---")
-
-        with st.expander("🔍 Lihat Detail Literatur Pendukung & Aturan Validasi"):
-            st.json(book_data)
+            st.markdown("### 📖 Pustaka Referensi")
+            st.caption("• Benjamin Graham (The Intelligent Investor)")
+            st.caption("• Thomas N. Bulkowski (Chart Patterns)")
