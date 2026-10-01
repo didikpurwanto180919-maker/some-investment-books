@@ -252,7 +252,7 @@ else:
     col3.metric("RSI (14)", f"{latest_rsi:.2f}")
     col4.metric("Sentimen Berita Real-Time", "Positif (Bullish)" if news_sentiment_score > 0 else ("Negatif (Bearish)" if news_sentiment_score < 0 else "Netral"))
 
-    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI DENGAN LABEL TANGGAL ---
+    # --- VISUALISASI GRAFIK CANDLESTICK & GARIS PROYEKSI (BEBAS TUMPUK) ---
     st.subheader(f"📉 Grafik Harga & Proyeksi Tanggal Masa Depan: {ticker_symbol}")
     
     fig = go.Figure()
@@ -272,12 +272,12 @@ else:
     plot_pred_dates = [last_date] + list(future_dates)
     plot_pred_prices = [latest_close] + list(predicted_prices)
     
-    # Menambahkan label teks tanggal & harga di atas titik proyeksi agar tampil langsung di grafik
+    # Label teks disederhanakan hanya menampilkan harga agar tidak bertumpuk di bawah/atas grafik
     fig.add_trace(go.Scatter(
         x=plot_pred_dates,
         y=plot_pred_prices,
         mode='lines+markers+text',
-        text=[f"<b>{p:,.1f}</b><br>{d.strftime('%d %b')}" for p, d in zip(plot_pred_prices, plot_pred_dates)],
+        text=[f"<b>{p:,.0f}</b>" for p in plot_pred_prices],
         textposition="top center",
         line=dict(color='#00FF7F', width=2.5, dash='dash'),
         marker=dict(size=9, color='#00FF7F'),
@@ -287,7 +287,7 @@ else:
     fig.update_layout(
         title=f'Pergerakan & Proyeksi Harga Saham {ticker_symbol} Hingga {future_dates[-1].strftime("%d %b %Y")}',
         yaxis_title='Harga Saham (IDR)',
-        xaxis_title='Tanggal Transaksi & Proyeksi',
+        xaxis_title='Rentang Waktu Transaksi & Proyeksi',
         template='plotly_dark',
         height=580,
         xaxis_rangeslider_visible=False,
@@ -300,7 +300,7 @@ else:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Tabel Detail Tanggal Prediksi
+    # Tabel Detail Tanggal Prediksi (Tempat paling rapi untuk melihat tanggal & target harga harian)
     with st.expander("📅 Lihat Detail Proyeksi Harga Berdasarkan Tanggal (5 Hari Ke Depan)"):
         df_future_table = pd.DataFrame({
             "Tanggal Proyeksi": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
