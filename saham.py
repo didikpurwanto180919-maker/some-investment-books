@@ -5,6 +5,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 import feedparser
 import urllib.parse
+from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 # Mengimpor model Machine Learning berbasis Gradient Boosting (XGBoost & LightGBM)
@@ -96,14 +97,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- EFEK SUARA AUDIO NOTIFIKASI REAL-TIME ---
+# --- EFEK SUARA AUDIO NOTIFIKASI REAL-TIME (DIPERBAIKI AGAR TIDAK LOOPING) ---
 def play_neon_sound():
-    sound_html = """
-        <audio autoplay>
-          <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-        </audio>
-    """
-    st.markdown(sound_html, unsafe_allow_html=True)
+    if "sound_played" not in st.session_state:
+        sound_html = """
+            <audio autoplay>
+              <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+            </audio>
+        """
+        st.markdown(sound_html, unsafe_allow_html=True)
+        st.session_state.sound_played = True
 
 play_neon_sound()
 
@@ -139,8 +142,13 @@ def load_book_references():
 
 book_data = load_book_references()
 
-# Sidebar Navigasi & Input Parameter Saham (Daftar Saham Diperluas)
+# Sidebar Navigasi & Input Parameter Saham
 st.sidebar.header("⚡ NEON CONFIG: SENSOR PASAR")
+
+# Widget Jam Real-Time di Sidebar menggunakan st.empty() & komponen HTML
+sidebar_clock = st.sidebar.empty()
+current_time_str = datetime.now().strftime('%H:%M:%S - %A, %d %b %Y')
+sidebar_clock.markdown(f"🕒 **Waktu Sistem:** `{current_time_str}`")
 
 popular_stocks = {
     "BBCA – Bank Central Asia Tbk": "BBCA.JK",
@@ -343,6 +351,10 @@ else:
         df_pred['Rolling_Mean_5'] = df_pred['Close'].rolling(5).mean()
         df_pred['Rolling_Std_5'] = df_pred['Close'].rolling(5).std()
         df_pred.dropna(inplace=True)
+
+        if len(df_pred) < 15:
+            st.error("⚠️ Data historis bersih terlalu sedikit untuk melatih model AI. Harap pilih rentang waktu (*Period*) yang lebih panjang di sidebar.")
+            st.stop()
 
         features = ['Days', 'Lag1', 'Lag2', 'Rolling_Mean_5', 'Rolling_Std_5']
         X = df_pred[features]
