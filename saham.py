@@ -7,6 +7,7 @@ import feedparser
 import urllib.parse
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import streamlit.components.v1 as components
 
 # Mengimpor model Machine Learning berbasis Gradient Boosting (XGBoost & LightGBM)
 from xgboost import XGBRegressor
@@ -145,10 +146,23 @@ book_data = load_book_references()
 # Sidebar Navigasi & Input Parameter Saham
 st.sidebar.header("⚡ NEON CONFIG: SENSOR PASAR")
 
-# Widget Jam Real-Time di Sidebar menggunakan st.empty() & komponen HTML
-sidebar_clock = st.sidebar.empty()
-current_time_str = datetime.now().strftime('%H:%M:%S - %A, %d %b %Y')
-sidebar_clock.markdown(f"🕒 **Waktu Sistem:** `{current_time_str}`")
+# --- WIDGET JAM REAL-TIME JAVASCRIPT (AKURAT & BERDETAK OTOMATIS SESUAI WIB) ---
+st.sidebar.markdown("🕒 **Waktu Sistem (WIB):**")
+clock_html = """
+<div style="font-family: 'Courier New', Courier, monospace; font-size: 14px; font-weight: bold; color: #00ffcc; background: #161f33; padding: 8px; border-radius: 5px; border: 1px solid #00ffcc; text-align: center;" id="live-clock">Loading Clock...</div>
+<script>
+function updateClock() {
+    const now = new Date();
+    // Menggunakan zona waktu Indonesia (Asia/Jakarta / WIB)
+    const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    const formatter = new Intl.DateTimeFormat('en-GB', options);
+    document.getElementById('live-clock').innerText = formatter.format(now);
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+"""
+components.html(clock_html, height=45)
 
 popular_stocks = {
     "BBCA – Bank Central Asia Tbk": "BBCA.JK",
