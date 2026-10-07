@@ -119,10 +119,10 @@ updateClock();
 """
 components.html(clock_html, height=45)
 
-# --- FUNGSI DINAMIS MENGAMBIL SELURUH EMITEN BEI / IDX ---
+# --- FUNGSI DINAMIS MENGAMBIL SELURUH EMITEN BEI / IDX (DIPERLUAS DENGAN KAMUS LENGKAP) ---
 @st.cache_data(ttl=86400)
 def get_all_idx_stocks():
-    fallback_stocks = {
+    comprehensive_stocks = {
         "BBCA – Bank Central Asia Tbk": "BBCA.JK",
         "BBRI – Bank Rakyat Indonesia Tbk": "BBRI.JK",
         "BMRI – Bank Mandiri Tbk": "BMRI.JK",
@@ -132,22 +132,43 @@ def get_all_idx_stocks():
         "GOTO – GoTo Gojek Tokopedia Tbk": "GOTO.JK",
         "BREN – Barito Renewables Energy Tbk": "BREN.JK",
         "AMMN – Amman Mineral Internasional Tbk": "AMMN.JK",
-        "CUAN – Petrindo Jaya Kreasi Tbk": "CUAN.JK"
+        "CUAN – Petrindo Jaya Kreasi Tbk": "CUAN.JK",
+        "ADRO – Adaro Energy Indonesia Tbk": "ADRO.JK",
+        "PTBA – Bukit Asam Tbk": "PTBA.JK",
+        "UNVR – Unilever Indonesia Tbk": "UNVR.JK",
+        "ICBP – Indofood CBP Sukses Makmur Tbk": "ICBP.JK",
+        "INDF – Indofood Sukses Makmur Tbk": "INDF.JK",
+        "ANTM – Aneka Tambang Tbk": "ANTM.JK",
+        "MDKA – Merdeka Copper Gold Tbk": "MDKA.JK",
+        "INCO – Vale Indonesia Tbk": "INCO.JK",
+        "KLBF – Kalbe Farma Tbk": "KLBF.JK",
+        "SMGR – Semen Indonesia Tbk": "SMGR.JK",
+        "INTP – Indocement Tunggal Prakarsa Tbk": "INTP.JK",
+        "JSMR – Jasa Marga (Persero) Tbk": "JSMR.JK",
+        "PGAS – Perusahaan Gas Negara Tbk": "PGAS.JK",
+        "UNTR – United Tractors Tbk": "UNTR.JK",
+        "ARTO – Bank Jago Tbk": "ARTO.JK",
+        "BRIS – Bank Syariah Indonesia Tbk": "BRIS.JK",
+        "MAPI – Mitra Adiperkasa Tbk": "MAPI.JK",
+        "ACES – Aspirasi Hidup Indonesia Tbk": "ACES.JK",
+        "MEDC – Medco Energi Internasional Tbk": "MEDC.JK",
+        "EXCL – XL Axiata Tbk": "EXCL.JK",
+        "ISAT – Indosat Tbk": "ISAT.JK"
     }
     try:
         url = "https://raw.githubusercontent.com/nightfury1204/indonesia-stock-exchange-list/main/stocks.json"
-        req = urllib.request.urlopen(url, timeout=5)
+        req = urllib.request.urlopen(url, timeout=3)
         data_json = json.loads(req.read().decode())
-        all_stocks = {}
         for item in data_json:
             code = item.get('code')
             name = item.get('name')
             if code:
                 ticker_key = f"{code.upper()} – {name}" if name else f"{code.upper()}.JK"
-                all_stocks[ticker_key] = f"{code.upper()}.JK"
-        return all_stocks if all_stocks else fallback_stocks
+                comprehensive_stocks[ticker_key] = f"{code.upper()}.JK"
     except Exception:
-        return fallback_stocks
+        pass
+        
+    return comprehensive_stocks
 
 with st.spinner("Memuat database seluruh emiten BEI..."):
     dict_all_stocks = get_all_idx_stocks()
@@ -225,9 +246,7 @@ def fetch_advanced_realtime_news_and_sentiment(ticker):
     rss_url = f"https://news.google.com/rss/search?q={query}+when:7d&hl=id&gl=ID&ceid=ID:id"
     
     sentiment_score = 0
-    detailed_logs = []
     
-    # Kamus NLP Finansial Berbobot Tinggi
     high_impact_positive = ["laba melonjak", "dividen jumbo", "akuisisi strategis", "rekor tertinggi", "buyback saham", "tumbuh positif", "ekspansi pabrik"]
     moderate_positive = ["naik", "tumbuh", "menguat", "rebound", "beli", "positif", "kontrak baru", "kinerja solid"]
     
@@ -255,7 +274,6 @@ def fetch_advanced_realtime_news_and_sentiment(ticker):
             item_sentiment = "Netral 🟡"
             score_delta = 0
 
-            # Cek Bobot Tinggi Positif (+2)
             if any(k in title_lower for k in high_impact_positive):
                 score_delta += 2
                 item_sentiment = "Sangat Positif 🟢 (+2)"
@@ -263,7 +281,6 @@ def fetch_advanced_realtime_news_and_sentiment(ticker):
                 score_delta += 1
                 item_sentiment = "Positif 🟢 (+1)"
 
-            # Cek Bobot Tinggi Negatif (-2)
             if any(k in title_lower for k in high_impact_negative):
                 score_delta -= 2
                 item_sentiment = "Sangat Negatif 🔴 (-2)"
