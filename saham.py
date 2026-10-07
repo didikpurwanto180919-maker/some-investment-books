@@ -152,7 +152,7 @@ def get_all_idx_stocks():
 with st.spinner("Memuat database seluruh emiten BEI..."):
     dict_all_stocks = get_all_idx_stocks()
 
-# --- FILTER MENU: PILIHAN EMITEN & FILTER KHUSUS AI (NAIK > 2% & PRESISI > 90%) ---
+# --- FILTER MENU: PILIHAN EMITEN & FILTER KHUSUS AI ---
 filter_high_precision_menu = st.sidebar.checkbox("🎯 Filter Saring Emiten Bluechip / Presisi Tinggi (>90%)", value=False)
 filter_ai_bullish_high_acc = st.sidebar.checkbox("🚀 Filter Sinyal Bullish AI (Naik > 2% & Presisi > 90%)", value=False)
 
@@ -182,7 +182,6 @@ ml_engine = st.sidebar.selectbox(
 period_option = st.sidebar.selectbox("Rentang Waktu Analisis", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
 interval_option = st.sidebar.selectbox("Interval Candle", ["1d", "1wk"], index=0)
 
-# Opsi Tampilan Indikator Tambahan di Grafik
 st.sidebar.markdown("---")
 st.sidebar.subheader("⚙️ Kustomisasi Tampilan Grafik")
 show_ichimoku = st.sidebar.checkbox("Tampilkan Ichimoku Cloud", value=True)
@@ -195,7 +194,7 @@ risk_tolerance_pct = st.sidebar.slider("Maksimal Risiko per Trade (%)", min_valu
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📡 Status Sistem Validasi")
-st.sidebar.success("🟢 Validasi Out-Of-Sample Aktif\n📊 Fitur Lanjutan (Ichimoku, SAR, MFI) Sinkron")
+st.sidebar.success("🟢 Validasi Out-Of-Sample & NLP Sentiment Aktif")
 
 st.title("⚡ QUANT AI: High-Precision Predictive & Risk Management Dashboard")
 st.markdown(
@@ -217,19 +216,31 @@ def fetch_stock_and_market_data(ticker, period, interval):
     except Exception:
         return pd.DataFrame(), pd.Series()
 
+# --- NLP SENTIMEN BERITA REAL-TIME TINGKAT LANJUT ---
 @st.cache_data(ttl=120)
-def fetch_realtime_news(ticker):
+def fetch_advanced_realtime_news_and_sentiment(ticker):
     clean_code = ticker.replace(".JK", "").lower()
     news_items = []
     query = urllib.parse.quote(f"saham {clean_code} OR {ticker}")
     rss_url = f"https://news.google.com/rss/search?q={query}+when:7d&hl=id&gl=ID&ceid=ID:id"
     
+    sentiment_score = 0
+    detailed_logs = []
+    
+    # Kamus NLP Finansial Berbobot Tinggi
+    high_impact_positive = ["laba melonjak", "dividen jumbo", "akuisisi strategis", "rekor tertinggi", "buyback saham", "tumbuh positif", "ekspansi pabrik"]
+    moderate_positive = ["naik", "tumbuh", "menguat", "rebound", "beli", "positif", "kontrak baru", "kinerja solid"]
+    
+    high_impact_negative = ["suspensi bursa", "gagal bayar", "default", "rugi bersih", "anjlok tajam", "kasus hukum", "sanksi ojk"]
+    moderate_negative = ["turun", "koreksi", "melemah", "beban meningkat", "rugi", "lesu", "tekanan jual"]
+
     try:
         feed = feedparser.parse(rss_url)
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:7]:
             title = entry.title
             link = entry.link
             published = entry.published if hasattr(entry, 'published') else "Terbaru"
+            title_lower = title.lower()
             
             source = "Portal Finansial"
             if "kontan" in link.lower() or "kontan" in title.lower():
@@ -241,13 +252,40 @@ def fetch_realtime_news(ticker):
             elif "idx" in link.lower():
                 source = "Keterbukaan Informasi IDX"
 
-            news_items.append({"title": title, "link": link, "publisher": source, "date": published})
+            item_sentiment = "Netral 🟡"
+            score_delta = 0
+
+            # Cek Bobot Tinggi Positif (+2)
+            if any(k in title_lower for k in high_impact_positive):
+                score_delta += 2
+                item_sentiment = "Sangat Positif 🟢 (+2)"
+            elif any(k in title_lower for k in moderate_positive):
+                score_delta += 1
+                item_sentiment = "Positif 🟢 (+1)"
+
+            # Cek Bobot Tinggi Negatif (-2)
+            if any(k in title_lower for k in high_impact_negative):
+                score_delta -= 2
+                item_sentiment = "Sangat Negatif 🔴 (-2)"
+            elif any(k in title_lower for k in moderate_negative):
+                score_delta -= 1
+                item_sentiment = "Negatif 🔴 (-1)"
+
+            sentiment_score += score_delta
+            news_items.append({
+                "title": title, 
+                "link": link, 
+                "publisher": source, 
+                "date": published, 
+                "sentiment": item_sentiment
+            })
     except Exception:
         pass
-    return news_items
+        
+    return news_items, sentiment_score
 
 data, benchmark_close = fetch_stock_and_market_data(ticker_symbol, period_option, interval_option)
-realtime_news = fetch_realtime_news(ticker_symbol)
+realtime_news, news_sentiment_score = fetch_advanced_realtime_news_and_sentiment(ticker_symbol)
 
 if data.empty or len(data) < 50:
     st.warning(
@@ -255,7 +293,7 @@ if data.empty or len(data) < 50:
         f"Silakan pilih rentang waktu yang lebih panjang di sidebar atau pastikan kode saham benar."
     )
 else:
-    # --- FEATURE ENGINEERING TINGKAT LANJUT (HIGH PRECISION) ---
+    # --- FEATURE ENGINEERING TINGKAT LANJUT ---
     data['MA20'] = data['Close'].rolling(window=20).mean()
     data['MA50'] = data['Close'].rolling(window=50).mean()
     
@@ -299,7 +337,7 @@ else:
     mfi_ratio = positive_flow / negative_flow
     data['MFI'] = 100 - (100 / (1 + mfi_ratio))
 
-    # --- ICHIMOKU CLOUD ---
+    # Ichimoku Cloud
     nine_high = data['High'].rolling(window=9).max()
     nine_low = data['Low'].rolling(window=9).min()
     data['Tenkan_Sen'] = (nine_high + nine_low) / 2
@@ -314,7 +352,7 @@ else:
     fifty_low = data['Low'].rolling(window=50).min()
     data['Senkou_Span_B'] = ((fifty_high + fifty_low) / 2).shift(26)
 
-    # --- PARABOLIC SAR (Simplified Calculation) ---
+    # Parabolic SAR
     high_series = data['High']
     low_series = data['Low']
     close_series = data['Close']
@@ -323,7 +361,6 @@ else:
     af = 0.02
     max_af = 0.2
     bullish = True
-    ep = high_series.iloc[0]
     hp = high_series.iloc[0]
     lp = low_series.iloc[0]
     
@@ -357,7 +394,7 @@ else:
         sar_list.append(curr_sar)
     data['Parabolic_SAR'] = sar_list
 
-    # Market Beta / Korelasi terhadap IHSG
+    # Market Beta terhadap IHSG
     if not benchmark_close.empty:
         combined = pd.concat([data['Close'].pct_change(), benchmark_close.pct_change()], axis=1).dropna()
         combined.columns = ['Stock', 'Market']
@@ -395,19 +432,7 @@ else:
         latest_stoch_k = float(data['Stoch_K'].iloc[-1])
         latest_mfi = float(data['MFI'].iloc[-1]) if 'MFI' in data.columns else 50.0
 
-        # --- SENTIMEN BERITA REAL-TIME ---
-        news_sentiment_score = 0
-        positive_keywords = ["naik", "lonjak", "tumbuh", "laba", "dividen", "positif", "beli", "akuisisi", "ekspansi", "rebound", "menguat"]
-        negative_keywords = ["anjlok", "turun", "rugi", "koreksi", "jual", "beban", "sanksi", "melemah", "lesu", "default"]
-
-        for n in realtime_news:
-            title_lower = n['title'].lower()
-            for pk in positive_keywords:
-                if pk in title_lower: news_sentiment_score += 1
-            for nk in negative_keywords:
-                if nk in title_lower: news_sentiment_score -= 1
-
-        # --- MACHINE LEARNING DENGAN TRAIN-TEST VALIDATION (OUT-OF-SAMPLE) ---
+        # --- MACHINE LEARNING VALIDASI OUT-OF-SAMPLE ---
         df_pred = data.reset_index()
         df_pred['Days'] = np.arange(len(df_pred))
         
@@ -421,7 +446,6 @@ else:
         X = df_pred[features]
         y = df_pred['Close']
 
-        # Time-Series Split untuk Evaluasi Akurasi Asli (80% Train, 20% Validation Test)
         split_idx = int(len(X) * 0.8)
         X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
@@ -443,7 +467,6 @@ else:
         val_mape = mean_absolute_percentage_error(y_test, val_preds) * 100
         model_accuracy_score = max(0, 100 - val_mape)
 
-        # Fit ulang ke seluruh data untuk prediksi masa depan
         xgb_model.fit(X, y)
         lgb_model.fit(X, y)
 
@@ -483,7 +506,7 @@ else:
         predicted_target = float(predicted_prices[-1])
         pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
 
-        # --- VALIDASI FILTER KHUSUS: PREDIKSI NAIK > 2% DAN PRESISI > 90% ---
+        # --- VALIDASI FILTER KHUSUS ---
         if filter_ai_bullish_high_acc:
             if pred_pct_change > 2.0 and model_accuracy_score > 90.0:
                 st.success(f"🚀 **EMITEN UNGGULAN TERVALIDASI**: Prediksi AI naik **{pred_pct_change:+.2f}%** (>2%) dan Tingkat Presisi Model **{model_accuracy_score:.2f}%** (>90%).")
@@ -508,7 +531,7 @@ else:
         col3.metric("Tingkat Presisi Model", f"{model_accuracy_score:.2f}%", f"MAPE: {val_mape:.2f}%")
         col4.metric("Beta Pasar (IHSG)", f"{stock_beta:.2f}", "Risiko Relatif")
 
-        # --- GRAFIK INTERAKTIF PLOTLY DENGAN TAMBAHAN ICHIMOKU & SAR ---
+        # --- GRAFIK INTERAKTIF PLOTLY ---
         st.subheader(f"📈 Grafik Candlestick, Bollinger, Ichimoku & Proyeksi Kuantitatif: {ticker_symbol}")
         
         fig = go.Figure()
@@ -561,7 +584,6 @@ else:
                 })
                 st.table(df_future_table)
 
-                # Tombol Unduh CSV Proyeksi
                 csv_data = df_future_table.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Unduh Laporan Proyeksi (CSV)",
@@ -594,14 +616,14 @@ else:
                     f"- **Estimasi Dana Digunakan:** Rp {estimated_total_investment:,.2f}"
                 )
 
-        # --- BERITA FINANSIAL REAL-TIME ---
-        st.subheader(f"📡 Berita Finansial & Sentimen Real-Time: {ticker_symbol}")
+        # --- BERITA FINANSIAL REAL-TIME & SENTIMEN NLP TERINTEGRASI ---
+        st.subheader(f"📡 Berita Finansial & Analisis Sentimen NLP Real-Time: {ticker_symbol}")
+        st.write(f"📊 **Skor Akumulasi Sentimen Berita Korporat:** `{news_sentiment_score}` (Positif jika > 0, Negatif jika < 0)")
+
         if realtime_news:
-            news_cols = st.columns(min(3, len(realtime_news[:3])))
-            for idx, item in enumerate(realtime_news[:3]):
-                with news_cols[idx]:
-                    st.markdown(f"**[{item['title']}]({item['link']})**")
-                    st.caption(f"📌 {item['publisher']} | {item['date']}")
+            for item in realtime_news:
+                st.markdown(f"- **[{item['title']}]({item['link']})**")
+                st.caption(f"📌 Sumber: {item['publisher']} | Waktu: {item['date']} | Status Sentimen NLP: **{item['sentiment']}**")
         else:
             st.info("Tidak ada berita real-time baru yang terindeks.")
 
@@ -619,6 +641,7 @@ else:
             if latest_mfi > 60: score += 1
             elif latest_mfi < 40: score -= 1
             if news_sentiment_score > 0: score += 1
+            elif news_sentiment_score < 0: score -= 1
             if pred_pct_change > 0: score += 1
 
             if score >= 3:
@@ -629,10 +652,12 @@ else:
                 rec_text = "HOLD / WAIT & SEE 🟡"
 
             st.markdown(f"### Rekomendasi Aksi: **{rec_text}**")
-            st.write(f"Skor Agregat Kuantitatif: **{score} / 7** (Termasuk Filter MFI, Sentimen Berita & AI)")
-            st.write(f"💡 **Indikator Pendukung:** MFI: **{latest_mfi:.1f}** | Stoch %K: **{latest_stoch_k:.1f}** | Sentimen Berita: **{news_sentiment_score}**")
+            st.write(f"Skor Agregat Kuantitatif: **{score} / 8** (Termasuk Filter MFI, Sentimen NLP Berita & AI)")
+            st.write(f"💡 **Indikator Pendukung:** MFI: **{latest_mfi:.1f}** | Stoch %K: **{latest_stoch_k:.1f}** | Sentimen NLP: **{news_sentiment_score}**")
 
         with col_rec2:
-            st.markdown("### 📖 Pustaka Referensi Validasi")
-            st.caption("• Thomas N. Bulkowski (Encyclopedia of Chart Patterns)")
-            st.caption("• Alexander Elder (Trading for a Living / ATR Risk)")
+            st.markdown("### 📖 Pustaka Referensi Validasi & Metodologi")
+            st.caption("• **Ernest P. Chan:** *Quantitative Trading* (Statistical Arbitrage & Out-of-Sample Test)")
+            st.caption("• **Marcos López de Prado:** *Advances in Financial Machine Learning* (Cross-Validation & Feature Importance)")
+            st.caption("• **J. Welles Wilder:** *New Concepts in Technical Trading Systems* (ATR & RSI Validation)")
+            st.caption("• **Thomas N. Bulkowski:** *Encyclopedia of Chart Patterns*")
