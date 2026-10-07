@@ -421,10 +421,11 @@ else:
     else:
         stock_beta = 1.0
 
-    data.dropna(inplace=True)
+    # Hanya drop NaN pada kolom esensial agar data tidak habis total
+    data.dropna(subset=['Close', 'Open', 'High', 'Low', 'Volume', 'MA20', 'RSI'], inplace=True)
     
     if data.empty or len(data) < 20:
-        st.warning("⚠️ Data terlalu sedikit setelah pembersihan indikator lanjutan.")
+        st.warning("⚠️ Data terlalu sedikit setelah pembersihan indikator. Silakan pilih rentang waktu yang lebih panjang di sidebar.")
     else:
         # --- DETEKSI SAHAM GORENGAN / ANOMALI RISIKO ---
         latest_close_check = float(data['Close'].iloc[-1])
@@ -445,9 +446,9 @@ else:
         price_change = latest_close - prev_close
         pct_change = (price_change / prev_close) * 100
         latest_rsi = float(data['RSI'].iloc[-1])
-        latest_atr = float(data['ATR'].iloc[-1])
-        latest_stoch_k = float(data['Stoch_K'].iloc[-1])
-        latest_mfi = float(data['MFI'].iloc[-1]) if 'MFI' in data.columns else 50.0
+        latest_atr = float(data['ATR'].iloc[-1]) if 'ATR' in data.columns and not pd.isna(data['ATR'].iloc[-1]) else (latest_close * 0.03)
+        latest_stoch_k = float(data['Stoch_K'].iloc[-1]) if 'Stoch_K' in data.columns and not pd.isna(data['Stoch_K'].iloc[-1]) else 50.0
+        latest_mfi = float(data['MFI'].iloc[-1]) if 'MFI' in data.columns and not pd.isna(data['MFI'].iloc[-1]) else 50.0
 
         # --- MACHINE LEARNING VALIDASI OUT-OF-SAMPLE ---
         df_pred = data.reset_index()
@@ -488,4 +489,193 @@ else:
         lgb_model.fit(X, y)
 
         last_date = data.index[-1]
-        future_dates = pd.bdate_
+        future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=5)
+        
+        predicted_prices = []
+        last_row_features = X.iloc[-1].copy()
+        
+        for i in range(5):
+            next_day_idx = last_row_features['Days'] + 1
+            current_input = pd.DataFrame([[
+                next_day_idx, 
+                last_row_features['Lag1'], 
+                last_row_features['Lag2'], 
+                last_row_features['Rolling_Mean_5'],
+                last_row_features['Rolling_Std_5'],
+                last_row_features['RSI'] if 'RSI' in last_row_features else latest_rsi,
+                last_row_features['MACD'] if 'MACD' in last_row_features else 0
+            ]], columns=features)
+            
+            pred_xgb = xgb_model.predict(current_input)[0]
+            pred_lgb = lgb_model.predict(current_input)[0]
+            
+            if ml_engine == "XGBoost Regressor":
+                pred_val = pred_xgb
+            elif ml_engine == "LightGBM Regressor":
+                pred_val = pred_lgb
+            else: 
+                pred_val = (0.5 * pred_xgb) + (0.5 * pred_lgb)
+
+            predicted_prices.append(pred_val)
+            last_row_features['Lag2'] = last_row_features['Lag1']
+            last_row_features['Lag1'] = pred_val
+            last_row_features['Days'] = next_day_idx
+
+        predicted_target = float(predicted_prices[-1])
+        pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
+
+        # --- VALIDASI FILTER KHUSUS ---
+        if filter_ai_bullish_high_acc:
+            if pred_pct_change > 2.0 and model_accuracy_score > 90.0:
+                st.success(f"🚀 **EMITEN UNGGULAN TERVALIDASI**: Prediksi AI naik **{pred_pct_change:+.2f}%** (>2%) dan Tingkat Presisi Model **{model_accuracy_score:.2f}%** (>90%).")
+            else:
+                st.warning(f"⚠️ Emiten **{ticker_symbol}** tidak memenuhi kriteria ketat filter (Prediksi Naik > 2% & Presisi > 90%). Saat ini Prediksi: **{pred_pct_change:+.2f}%**, Presisi: **{model_accuracy_score:.2f}%**.")
+
+        if model_accuracy_score >= 90.0:
+            st.info(f"🎯 **Status Akurasi Model**: Sangat Tinggi (**{model_accuracy_score:.2f}%**).")
+        else:
+            st.warning(f"⚠️ Catatan Presisi: Model saat ini memiliki tingkat akurasi **{model_accuracy_score:.2f}%** (<90%).")
+
+        if is_potential_gorengan:
+            st.error(
+                f"🚨 **PERINGATAN RISIKO TINGGI (SAHAM GORENGAN / VOLATIL)**: "
+                f"Emiten **{ticker_symbol}** terdeteksi memiliki anomali: " + ", ".join(gorengan_reasons)
+            )
+
+        # --- METRIK UTAMA KINERJA DAN PREDIKSI ---
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Harga Terakhir", f"{latest_close:,.2f}", f"{pct_change:+.2f}%")
+        col2.metric(f"Prediksi AI (5 Hari)", f"{predicted_target:,.2f}", f"{pred_pct_change:+.2f}%")
+        col3.metric("Tingkat Presisi Model", f"{model_accuracy_score:.2f}%", f"MAPE: {val_mape:.2f}%")
+        col4.metric("Beta Pasar (IHSG)", f"{stock_beta:.2f}", "Risiko Relatif")
+
+        # --- GRAFIK INTERAKTIF PLOTLY ---
+        st.subheader(f"📈 Grafik Candlestick, Bollinger, Ichimoku & Proyeksi Kuantitatif: {ticker_symbol}")
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Candlestick(
+            x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Aktual Candle'
+        ))
+        
+        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], line=dict(color='rgba(0,255,204,0.3)', width=1), name='BB Upper'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], line=dict(color='rgba(0,255,204,0.3)', width=1), fill='tonexty', fillcolor='rgba(0,255,204,0.03)', name='BB Lower'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], line=dict(color='#ff007f', width=1.5), name='MA 20'))
+
+        if show_ichimoku and 'Senkou_Span_A' in data.columns:
+            fig.add_trace(go.Scatter(x=data.index, y=data['Senkou_Span_A'], line=dict(color='rgba(0,255,0,0.5)', width=1), name='Senkou Span A'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['Senkou_Span_B'], line=dict(color='rgba(255,0,0,0.5)', width=1), fill='tonexty', fillcolor='rgba(100,100,100,0.1)', name='Senkou Span B'))
+
+        if show_sar and 'Parabolic_SAR' in data.columns:
+            fig.add_trace(go.Scatter(x=data.index, y=data['Parabolic_SAR'], mode='markers', marker=dict(size=4, color='yellow'), name='Parabolic SAR'))
+        
+        plot_pred_dates = [last_date] + list(future_dates)
+        plot_pred_prices = [latest_close] + list(predicted_prices)
+        labels_text = [""] * len(plot_pred_prices)
+        labels_text[-1] = f"<b>Target: {predicted_target:,.0f}</b>"
+
+        fig.add_trace(go.Scatter(
+            x=plot_pred_dates, y=plot_pred_prices, mode='lines+markers+text',
+            text=labels_text, textposition="top center",
+            line=dict(color='#00ffcc', width=2.5, dash='dash'),
+            marker=dict(size=9, color='#00ffcc'), name='Proyeksi AI'
+        ))
+        
+        fig.update_layout(
+            title=f'Proyeksi Kuantitatif {ticker_symbol} Menuju {future_dates[-1].strftime("%d %b %Y")}',
+            yaxis_title='Harga (IDR)', xaxis_title='Timeline',
+            template='plotly_dark', paper_bgcolor='#05070c', plot_bgcolor='#0e1320',
+            height=580, xaxis_rangeslider_visible=False,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabel Detail Prediksi, Kalkulator Lot, & Tombol Unduh CSV
+        with st.expander("📅 Rincian Target Harga Harian, Kalkulator Risiko & Ekspor Data"):
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                st.markdown("**Target Harga Harian AI:**")
+                df_future_table = pd.DataFrame({
+                    "Tanggal": [d.strftime("%Y-%m-%d (%A)") for d in future_dates],
+                    "Target Harga AI": [f"{p:,.2f}" for p in predicted_prices],
+                    "Est. Perubahan (%)": [f"{((p - latest_close) / latest_close) * 100:+.2f}%" for p in predicted_prices]
+                })
+                st.table(df_future_table)
+
+                csv_data = df_future_table.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Unduh Laporan Proyeksi (CSV)",
+                    data=csv_data,
+                    file_name=f"proyeksi_ai_{ticker_symbol}.csv",
+                    mime="text/csv"
+                )
+            
+            with col_t2:
+                st.markdown("**Kalkulator Alokasi Lot Berbasis Risiko ATR:**")
+                recommended_stop_loss = latest_close - (2 * latest_atr)
+                recommended_take_profit = latest_close + (3 * latest_atr)
+                
+                max_money_risk = user_capital * (risk_tolerance_pct / 100.0)
+                risk_per_share = latest_close - recommended_stop_loss
+                if risk_per_share > 0:
+                    shares_to_buy = max_money_risk / risk_per_share
+                    lots_to_buy = int(shares_to_buy / 100)
+                else:
+                    lots_to_buy = 0
+
+                estimated_total_investment = lots_to_buy * 100 * latest_close
+
+                st.info(
+                    f"📌 **Parameter Manajemen Risiko Aktif:**\n\n"
+                    f"- **Nilai ATR (14):** Rp {latest_atr:,.2f}\n"
+                    f"- **Saran Stop Loss (2x ATR):** Rp {recommended_stop_loss:,.2f}\n"
+                    f"- **Saran Take Profit (3x ATR):** Rp {recommended_take_profit:,.2f}\n"
+                    f"- **Alokasi Lot Aman:** **{lots_to_buy} Lot** ({lots_to_buy * 100} lembar)\n"
+                    f"- **Estimasi Dana Digunakan:** Rp {estimated_total_investment:,.2f}"
+                )
+
+        # --- BERITA FINANSIAL REAL-TIME & SENTIMEN NLP TERINTEGRASI ---
+        st.subheader(f"📡 Berita Finansial & Analisis Sentimen NLP Real-Time: {ticker_symbol}")
+        st.write(f"📊 **Skor Akumulasi Sentimen Berita Korporat:** `{news_sentiment_score}` (Positif jika > 0, Negatif jika < 0)")
+
+        if realtime_news:
+            for item in realtime_news:
+                st.markdown(f"- **[{item['title']}]({item['link']})**")
+                st.caption(f"📌 Sumber: {item['publisher']} | Waktu: {item['date']} | Status Sentimen NLP: **{item['sentiment']}**")
+        else:
+            st.info("Tidak ada berita real-time baru yang terindeks.")
+
+        st.markdown("---")
+        st.subheader("🎯 Sistem Rekomendasi Sinyal Otomatis Berbasis Multi-Indikator")
+        
+        col_rec1, col_rec2 = st.columns([2, 1])
+        with col_rec1:
+            score = 0
+            if latest_close > data['MA20'].iloc[-1]: score += 1
+            if latest_rsi < 35: score += 2
+            elif latest_rsi > 65: score -= 2
+            if latest_stoch_k < 20: score += 1
+            elif latest_stoch_k > 80: score -= 1
+            if latest_mfi > 60: score += 1
+            elif latest_mfi < 40: score -= 1
+            if news_sentiment_score > 0: score += 1
+            elif news_sentiment_score < 0: score -= 1
+            if pred_pct_change > 0: score += 1
+
+            if score >= 3:
+                rec_text = "STRONG BUY / AKUMULASI BERTAHAP 🟢"
+            elif score <= -2:
+                rec_text = "SELL / TAKE PROFIT 🔴"
+            else:
+                rec_text = "HOLD / WAIT & SEE 🟡"
+
+            st.markdown(f"### Rekomendasi Aksi: **{rec_text}**")
+            st.write(f"Skor Agregat Kuantitatif: **{score} / 8** (Termasuk Filter MFI, Sentimen NLP Berita & AI)")
+            st.write(f"💡 **Indikator Pendukung:** MFI: **{latest_mfi:.1f}** | Stoch %K: **{latest_stoch_k:.1f}** | Sentimen NLP: **{news_sentiment_score}**")
+
+        with col_rec2:
+            st.markdown("### 📖 Pustaka Referensi Validasi & Metodologi")
+            st.caption("• **Ernest P. Chan:** *Quantitative Trading* (Statistical Arbitrage & Out-of-Sample Test)")
+            st.caption("• **Marcos López de Prado:** *Advances in Financial Machine Learning* (Cross-Validation & Feature Importance)")
+            st.caption("• **J. Welles Wilder:** *New Concepts in Technical Trading Systems* (ATR & RSI Validation)")
+            st.caption("• **Thomas N. Bulkowski:** *Encyclopedia of Chart Patterns*")
