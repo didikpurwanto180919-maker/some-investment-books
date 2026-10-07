@@ -152,8 +152,9 @@ def get_all_idx_stocks():
 with st.spinner("Memuat database seluruh emiten BEI..."):
     dict_all_stocks = get_all_idx_stocks()
 
-# --- FILTER MENU: PILIHAN EMITEN ATAU PRIORITAS PRESISI TINGGI (>95%) ---
-filter_high_precision_menu = st.sidebar.checkbox("🎯 Filter Saring Emiten Bluechip / Presisi Tinggi (>95%)", value=False)
+# --- FILTER MENU: PILIHAN EMITEN & FILTER KHUSUS AI (NAIK > 2% & PRESISI > 90%) ---
+filter_high_precision_menu = st.sidebar.checkbox("🎯 Filter Saring Emiten Bluechip / Presisi Tinggi (>90%)", value=False)
+filter_ai_bullish_high_acc = st.sidebar.checkbox("🚀 Filter Sinyal Bullish AI (Naik > 2% & Presisi > 90%)", value=False)
 
 if filter_high_precision_menu:
     filtered_stocks = {k: v for k, v in dict_all_stocks.items() if any(x in v for x in ["BBCA", "BBRI", "BMRI", "BBNI", "ASII", "TLKM", "ICBP", "UNVR", "ADRO", "PTBA", "BREN", "ANTM"])}
@@ -419,10 +420,17 @@ else:
         predicted_target = float(predicted_prices[-1])
         pred_pct_change = ((predicted_target - latest_close) / latest_close) * 100
 
-        if model_accuracy_score >= 95.0:
-            st.success(f"🎯 **STATUS PRESISI TINGGI TERVALIDASI**: Model AI mencapai akurasi **{model_accuracy_score:.2f}%** (>95% target presisi terpenuhi).")
+        # --- VALIDASI FILTER KHUSUS: PREDIKSI NAIK > 2% DAN PRESISI > 90% ---
+        if filter_ai_bullish_high_acc:
+            if pred_pct_change > 2.0 and model_accuracy_score > 90.0:
+                st.success(f"🚀 **EMITEN UNGGULAN TERVALIDASI**: Prediksi AI naik **{pred_pct_change:+.2f}%** (>2%) dan Tingkat Presisi Model **{model_accuracy_score:.2f}%** (>90%).")
+            else:
+                st.warning(f"⚠️ Emiten **{ticker_symbol}** tidak memenuhi kriteria ketat filter (Prediksi Naik > 2% & Presisi > 90%). Saat ini Prediksi: **{pred_pct_change:+.2f}%**, Presisi: **{model_accuracy_score:.2f}%**.")
+
+        if model_accuracy_score >= 90.0:
+            st.info(f"🎯 **Status Akurasi Model**: Sangat Tinggi (**{model_accuracy_score:.2f}%**).")
         else:
-            st.warning(f"⚠️ Catatan Presisi: Model saat ini memiliki tingkat akurasi **{model_accuracy_score:.2f}%** (<95%).")
+            st.warning(f"⚠️ Catatan Presisi: Model saat ini memiliki tingkat akurasi **{model_accuracy_score:.2f}%** (<90%).")
 
         if is_potential_gorengan:
             st.error(
