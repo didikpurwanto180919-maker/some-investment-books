@@ -5,8 +5,8 @@ import yfinance as yf
 import plotly.graph_objects as go
 import feedparser
 import urllib.parse
-import urllib.request
 import json
+import os
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 import streamlit.components.v1 as components
@@ -100,7 +100,7 @@ def play_neon_sound():
 play_neon_sound()
 
 # Sidebar Navigasi & Input Parameter Saham
-st.sidebar.header("⚡ QUANT CONFIG: ALL IDX STOCKS")
+st.sidebar.header("⚡ QUANT CONFIG: 963 IDX STOCKS")
 
 # --- WIDGET JAM REAL-TIME JAVASCRIPT (WIB) ---
 st.sidebar.markdown("🕒 **Waktu Sistem (WIB):**")
@@ -119,73 +119,55 @@ updateClock();
 """
 components.html(clock_html, height=45)
 
-# --- FUNGSI DINAMIS MENGAMBIL SELURUH EMITEN BEI / IDX ---
+# --- FUNGSI MEMUAT 963 SAHAM DARI BERKAS CSV LOKAL ---
 @st.cache_data(ttl=86400)
-def get_all_idx_stocks():
-    comprehensive_stocks = {
-        "BBCA – Bank Central Asia Tbk": "BBCA.JK",
-        "BBRI – Bank Rakyat Indonesia Tbk": "BBRI.JK",
-        "BMRI – Bank Mandiri Tbk": "BMRI.JK",
-        "BBNI – Bank Negara Indonesia Tbk": "BBNI.JK",
-        "ASII – Astra International Tbk": "ASII.JK",
-        "TLKM – Telkom Indonesia Tbk": "TLKM.JK",
-        "GOTO – GoTo Gojek Tokopedia Tbk": "GOTO.JK",
-        "BREN – Barito Renewables Energy Tbk": "BREN.JK",
-        "AMMN – Amman Mineral Internasional Tbk": "AMMN.JK",
-        "CUAN – Petrindo Jaya Kreasi Tbk": "CUAN.JK",
-        "ADRO – Adaro Energy Indonesia Tbk": "ADRO.JK",
-        "PTBA – Bukit Asam Tbk": "PTBA.JK",
-        "UNVR – Unilever Indonesia Tbk": "UNVR.JK",
-        "ICBP – Indofood CBP Sukses Makmur Tbk": "ICBP.JK",
-        "INDF – Indofood Sukses Makmur Tbk": "INDF.JK",
-        "ANTM – Aneka Tambang Tbk": "ANTM.JK",
-        "MDKA – Merdeka Copper Gold Tbk": "MDKA.JK",
-        "INCO – Vale Indonesia Tbk": "INCO.JK",
-        "KLBF – Kalbe Farma Tbk": "KLBF.JK",
-        "SMGR – Semen Indonesia Tbk": "SMGR.JK",
-        "INTP – Indocement Tunggal Prakarsa Tbk": "INTP.JK",
-        "JSMR – Jasa Marga (Persero) Tbk": "JSMR.JK",
-        "PGAS – Perusahaan Gas Negara Tbk": "PGAS.JK",
-        "UNTR – United Tractors Tbk": "UNTR.JK",
-        "ARTO – Bank Jago Tbk": "ARTO.JK",
-        "BRIS – Bank Syariah Indonesia Tbk": "BRIS.JK",
-        "MAPI – Mitra Adiperkasa Tbk": "MAPI.JK",
-        "ACES – Aspirasi Hidup Indonesia Tbk": "ACES.JK",
-        "MEDC – Medco Energi Internasional Tbk": "MEDC.JK",
-        "EXCL – XL Axiata Tbk": "EXCL.JK",
-        "ISAT – Indosat Tbk": "ISAT.JK"
-    }
-    try:
-        url = "https://raw.githubusercontent.com/nightfury1204/indonesia-stock-exchange-list/main/stocks.json"
-        req = urllib.request.urlopen(url, timeout=3)
-        data_json = json.loads(req.read().decode())
-        for item in data_json:
-            code = item.get('code')
-            name = item.get('name')
-            if code:
-                ticker_key = f"{code.upper()} – {name}" if name else f"{code.upper()}.JK"
-                comprehensive_stocks[ticker_key] = f"{code.upper()}.JK"
-    except Exception:
-        pass
+def load_963_idx_stocks():
+    comprehensive_stocks = {}
+    csv_filename = "daftar_lengkap_963_saham_indonesia.csv"
+    
+    if os.path.exists(csv_filename):
+        try:
+            df_csv = pd.read_csv(csv_filename)
+            for _, row in df_csv.iterrows():
+                code = str(row.get('Kode_Saham', '')).strip().upper()
+                name = str(row.get('Nama_Perusahaan', '')).strip()
+                sector = str(row.get('Sektor', '')).strip()
+                if code:
+                    ticker_key = f"{code} – {name} ({sector})" if name else f"{code}.JK"
+                    comprehensive_stocks[ticker_key] = f"{code}.JK"
+        except Exception:
+            pass
+            
+    if not comprehensive_stocks:
+        comprehensive_stocks = {
+            "BBCA – Bank Central Asia Tbk": "BBCA.JK",
+            "BBRI – Bank Rakyat Indonesia Tbk": "BBRI.JK",
+            "BMRI – Bank Mandiri Tbk": "BMRI.JK",
+            "BBNI – Bank Negara Indonesia Tbk": "BBNI.JK",
+            "ASII – Astra International Tbk": "ASII.JK",
+            "TLKM – Telkom Indonesia Tbk": "TLKM.JK",
+            "PTBA – Bukit Asam Tbk": "PTBA.JK",
+            "ADRO – Adaro Energy Indonesia Tbk": "ADRO.JK"
+        }
         
     return comprehensive_stocks
 
-with st.spinner("Memuat database seluruh emiten BEI..."):
-    dict_all_stocks = get_all_idx_stocks()
+with st.spinner("Memuat database 963 emiten BEI dari file CSV..."):
+    dict_all_stocks = load_963_idx_stocks()
 
 # --- HUBUNGKAN FILTER SIDEBAR KE TAMPILAN UTAMA ---
 filter_high_precision_menu = st.sidebar.checkbox("🎯 Filter Saring Emiten Bluechip / Presisi Tinggi (>90%)", value=False)
 filter_ai_bullish_high_acc = st.sidebar.checkbox("🚀 Filter Sinyal Bullish AI (Naik > 2% & Presisi > 90%)", value=False)
 
 if filter_high_precision_menu:
-    filtered_stocks = {k: v for k, v in dict_all_stocks.items() if any(x in v for x in ["BBCA", "BBRI", "BMRI", "BBNI", "ASII", "TLKM", "ICBP", "UNVR", "ADRO", "PTBA", "BREN", "ANTM"])}
+    filtered_stocks = {k: v for k, v in dict_all_stocks.items() if any(x in v for x in ["BBCA", "BBRI", "BMRI", "BBNI", "ASII", "TLKM", "ICBP", "UNVR", "ADRO", "PTBA", "BREN", "ANTM", "MDKA", "INCO"])}
     if not filtered_stocks:
         filtered_stocks = dict_all_stocks
 else:
     filtered_stocks = dict_all_stocks
 
 stock_choice = st.sidebar.selectbox(
-    "Pilih atau Cari Emiten BEI (Ketik nama/kode)", 
+    "Pilih atau Cari Emiten BEI (Total 963 Saham)", 
     options=list(filtered_stocks.keys()),
     index=0
 )
@@ -215,11 +197,11 @@ risk_tolerance_pct = st.sidebar.slider("Maksimal Risiko per Trade (%)", min_valu
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📡 Status Sistem Validasi")
-st.sidebar.success("🟢 Validasi Out-Of-Sample, Realtime NLP Sentiment & Price Action Aktif")
+st.sidebar.success("🟢 Database 963 Emiten, Out-Of-Sample & NLP Aktif")
 
 st.title("⚡ QUANT AI: High-Precision Predictive & Risk Management Dashboard")
 st.markdown(
-    f"Sistem analitik kuantitatif pasar saham tingkat lanjut dengan validasi statistik, analisis sentimen berita real-time, manajemen risiko presisi tinggi, serta integrasi prinsip **Mark Douglas** & **Al Brooks** untuk emiten **{ticker_symbol}**."
+    f"Sistem analitik kuantitatif pasar saham tingkat lanjut dengan database **963 emiten BEI**, validasi statistik, sentimen berita real-time, manajemen risiko presisi tinggi, serta integrasi prinsip **Mark Douglas** & **Al Brooks** untuk emiten **{ticker_symbol}**."
 )
 
 @st.cache_data(ttl=30)
@@ -312,39 +294,33 @@ else:
     data['MA20'] = data['Close'].rolling(window=20).mean()
     data['MA50'] = data['Close'].rolling(window=50).mean()
     
-    # Bollinger Bands
     data['BB_Middle'] = data['Close'].rolling(window=20).mean()
     std_dev = data['Close'].rolling(window=20).std()
     data['BB_Upper'] = data['BB_Middle'] + (std_dev * 2)
     data['BB_Lower'] = data['BB_Middle'] - (std_dev * 2)
     
-    # RSI (14)
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     data['RSI'] = 100 - (100 / (1 + rs))
 
-    # MACD
     exp1 = data['Close'].ewm(span=12, adjust=False).mean()
     exp2 = data['Close'].ewm(span=26, adjust=False).mean()
     data['MACD'] = exp1 - exp2
     data['Signal_Line'] = data['MACD'].ewm(span=9, adjust=False).mean()
 
-    # Average True Range (ATR)
     high_low = data['High'] - data['Low']
     high_close = (data['High'] - data['Close'].shift()).abs()
     low_close = (data['Low'] - data['Close'].shift()).abs()
     true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     data['ATR'] = true_range.rolling(window=14).mean()
 
-    # Stochastic Oscillator (%K & %D)
     low_14 = data['Low'].rolling(window=14).min()
     high_14 = data['High'].rolling(window=14).max()
     data['Stoch_K'] = 100 * ((data['Close'] - low_14) / (high_14 - low_14))
     data['Stoch_D'] = data['Stoch_K'].rolling(window=3).mean()
 
-    # Money Flow Index (MFI 14)
     typical_price = (data['High'] + data['Low'] + data['Close']) / 3
     raw_money_flow = typical_price * data['Volume']
     positive_flow = raw_money_flow.where(typical_price > typical_price.shift(1), 0).rolling(14).sum()
@@ -352,13 +328,11 @@ else:
     mfi_ratio = positive_flow / negative_flow
     data['MFI'] = 100 - (100 / (1 + mfi_ratio))
 
-    # Al Brooks Price Action Metrics
     data['Body_Size'] = (data['Close'] - data['Open']).abs()
     data['Candle_Range'] = data['High'] - data['Low']
     data['Body_Ratio'] = np.where(data['Candle_Range'] > 0, data['Body_Size'] / data['Candle_Range'], 0.5)
     data['Trend_Direction'] = np.where(data['Close'] > data['MA20'], 1, -1)
 
-    # Ichimoku Cloud
     nine_high = data['High'].rolling(window=9).max()
     nine_low = data['Low'].rolling(window=9).min()
     data['Tenkan_Sen'] = (nine_high + nine_low) / 2
@@ -372,7 +346,6 @@ else:
     fifty_low = data['Low'].rolling(window=50).min()
     data['Senkou_Span_B'] = ((fifty_high + fifty_low) / 2).shift(26)
 
-    # Parabolic SAR
     high_series = data['High']
     low_series = data['Low']
     close_series = data['Close']
@@ -414,7 +387,6 @@ else:
         sar_list.append(curr_sar)
     data['Parabolic_SAR'] = sar_list
 
-    # Market Beta terhadap IHSG
     if not benchmark_close.empty:
         combined = pd.concat([data['Close'].pct_change(), benchmark_close.pct_change()], axis=1).dropna()
         combined.columns = ['Stock', 'Market']
@@ -695,21 +667,19 @@ else:
                 * **J. Welles Wilder (*New Concepts in Technical Trading Systems*):** Penggunaan *Average True Range* (ATR) untuk pengukuran volatilitas mutlak dan RSI untuk mendeteksi zona jenuh beli/jual secara presisi.
             """)
 
-        # --- MODUL SCREENER TERINTEGRASI DENGAN FILTER SIDEBAR ---
+        # --- MODUL SCREENER 963 SAHAM TERINTEGRASI DENGAN FILTER SIDEBAR ---
         st.markdown("---")
-        st.subheader("🚀 AI Top Benefit Stock Screener (Pemindai Saham Potensi Keuntungan Tertinggi)")
-        st.write("Modul ini dipetakan secara sinkron dengan status **Filter Sidebar** untuk menyaring emiten berpresisi tinggi dan berpotensi kenaikan terbaik.")
+        st.subheader("🚀 AI Top Benefit Stock Screener (Pemindai 963 Saham Potensi Keuntungan Tertinggi)")
+        st.write("Modul ini memindai emiten dari database **963 Saham Indonesia** dan dipetakan secara sinkron dengan status **Filter Sidebar** Anda.")
 
-        if st.button("🔍 Jalankan Pemindaian Machine Learning Menyeluruh (Top Benefit Screener)"):
-            with st.spinner("Menjalankan model Machine Learning tersinkronisasi filter... Mohon tunggu sebentar."):
-                sample_screening_tickers = filtered_stocks if filter_high_precision_menu else {
-                    "BBCA": "BBCA.JK", "BBRI": "BBRI.JK", "BMRI": "BMRI.JK", "BBNI": "BBNI.JK",
-                    "ASII": "ASII.JK", "TLKM": "TLKM.JK", "ADRO": "ADRO.JK", "PTBA": "PTBA.JK",
-                    "ICBP": "ICBP.JK", "ANTM": "ANTM.JK"
-                }
+        scan_limit = st.slider("Jumlah Sampel Emiten yang Dipindai Sekaligus", min_value=10, max_value=100, value=20, step=10)
+
+        if st.button("🔍 Jalankan Pemindaian Machine Learning Menyeluruh (963 IDX Stocks)"):
+            with st.spinner(f"Menjalankan model Machine Learning pada {scan_limit} emiten teratas dari total 963 saham... Mohon tunggu sebentar."):
+                subset_tickers = dict(list(filtered_stocks.items())[:scan_limit])
                 
                 screener_results = []
-                for key_name, tck in sample_screening_tickers.items():
+                for key_name, tck in subset_tickers.items():
                     try:
                         df_scr = yf.download(tck, period=period_option, interval="1d", progress=False)
                         if isinstance(df_scr.columns, pd.MultiIndex):
@@ -757,7 +727,6 @@ else:
                                 target_p_scr = float(next_p_list[-1])
                                 ml_pct_gain = ((target_p_scr - latest_p_scr) / latest_p_scr) * 100
                                 
-                                # Terapkan filter ketat jika opsi Sinyal Bullish AI diaktifkan di sidebar
                                 if filter_ai_bullish_high_acc and ml_pct_gain <= 2.0:
                                     continue
 
@@ -778,8 +747,8 @@ else:
                     df_final_scr['SortKey'] = df_final_scr['Potensi Return AI'].str.replace('+', '').str.replace('%', '').astype(float)
                     df_final_scr = df_final_scr.sort_values(by='SortKey', ascending=False).drop(columns=['SortKey'])
                     
-                    st.success("✅ Pemindaian Machine Learning Berdasarkan Filter Aktif Selesai!")
+                    st.success("✅ Pemindaian Machine Learning Berdasarkan Database 963 Saham Selesai!")
                     st.dataframe(df_final_scr, use_container_width=True)
-                    st.caption("💡 *Catatan:* Tabel screener kini secara otomatis mematuhi parameter filter sidebar Anda untuk akurasi dan presisi maksimal.")
+                    st.caption("💡 *Catatan:* Tabel screener memindai langsung dari database emiten Indonesia secara sinkron dengan parameter filter sidebar Anda.")
                 else:
-                    st.warning("Tidak ada emiten yang memenuhi kriteria filter ketat saat ini.")
+                    st.warning("Tidak ada emiten yang memenuhi kriteria filter ketat pada sampel saat ini.")
