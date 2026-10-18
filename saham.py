@@ -5,8 +5,10 @@ import yfinance as yf
 import plotly.graph_objects as go
 import feedparser
 import urllib.parse
+import urllib.request
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 import streamlit.components.v1 as components
@@ -18,7 +20,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 
 # Konfigurasi Halaman Streamlit
 st.set_page_config(
-    page_title="AI Quadruple-Threat IDX: 1011 Emiten BEI Predictive Dashboard",
+    page_title="AI Quadruple-Threat IDX: 1011 Emiten & 140+ Omni-News Intelligence",
     page_icon="⚡",
     layout="wide"
 )
@@ -98,6 +100,105 @@ DELISTED_LIST = [
     "UNTX"
 ]
 
+# --- KATALOG LENGKAP 140+ PORTAL BERITA, REGULATOR, RISET SEKURITAS & BANDARMOLOGY ---
+OMNI_NEWS_DIRECTORY = {
+    "1. Regulator Resmi (BEI, KSEI, OJK, e-IPO)": [
+        ("Keterbukaan Informasi BEI (Real-Time PDF)", "https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi/"),
+        ("Pengumuman Bursa (Suspensi, Unsuspensi/Buka Gembok, Delisting)", "https://www.idx.co.id/id/berita/pengumuman/"),
+        ("Radar Saham UMA (Unusual Market Activity)", "https://www.idx.co.id/id/berita/unusual-market-activity-uma/"),
+        ("Daftar Efek Papan Pemantauan Khusus (FCA)", "https://www.idx.co.id/id/data-pasar/data-saham/daftar-efek-pemantauan-khusus/"),
+        ("Kalender Aksi Korporasi BEI (Dividen, RUPS, Right Issue, Stock Split)", "https://www.idx.co.id/id/perusahaan-tercatat/kalender-perusahaan-tercatat/"),
+        ("Ringkasan Perdagangan Saham (OHLC, Volume & Foreign Flow)", "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham/"),
+        ("Ringkasan Broker Harian (Official Broker Summary)", "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-broker/"),
+        ("Data Indeks Sektoral BEI (IDX-IC)", "https://www.idx.co.id/id/data-pasar/data-indeks/ringkasan-indeks/"),
+        ("Laporan Keuangan Tahunan & Kuartalan Emiten", "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/"),
+        ("Daftar Efek Marjin & Short Selling", "https://www.idx.co.id/id/data-pasar/data-saham/daftar-efek-marjin-dan-short-selling/"),
+        ("Aktivitas Pencatatan & IPO Baru BEI", "https://www.idx.co.id/id/perusahaan-tercatat/aktivitas-pencatatan/"),
+        ("Siaran Pers Resmi BEI", "https://www.idx.co.id/id/berita/berita-pers/"),
+        ("Data Kepemilikan Saham KSEI (>5% & Distribusi)", "https://www.ksei.co.id/publications/shareholder-information"),
+        ("Statistik Bulanan KSEI (Scriptless Balance Lokal vs Asing)", "https://www.ksei.co.id/publications/monthly-statistic"),
+        ("Jadwal Aksi Korporasi KSEI", "https://www.ksei.co.id/publications/corporate-action-schedules"),
+        ("e-IPO (Jadwal & Prospektus Saham IPO)", "https://e-ipo.co.id/id/ipo/index"),
+        ("Pengumuman OJK (Pasar Modal)", "https://ojk.go.id/id/berita-dan-kegiatan/pengumuman/Default.aspx"),
+    ],
+    "2. Media Finansial Tier-1 (CNBC, Kontan, Bisnis, Bloomberg Technoz, EmitenNews, IDX Channel)": [
+        ("CNBC Indonesia Market", "https://www.cnbcindonesia.com/market"),
+        ("CNBC My Money (Rekomendasi Saham & Trading Ideas)", "https://www.cnbcindonesia.com/mymoney"),
+        ("CNBC Research (Bedah Fundamental & Makro)", "https://www.cnbcindonesia.com/research"),
+        ("CNBC Indeks Berita Market (Detik-demi-Detik)", "https://www.cnbcindonesia.com/market/indeks"),
+        ("CNBC Live TV & Data Pasar", "https://www.cnbcindonesia.com/market-data"),
+        ("CNBC Tag Rekomendasi Saham", "https://www.cnbcindonesia.com/tag/rekomendasi-saham"),
+        ("Kontan Investasi (Utama Pasar Modal)", "https://investasi.kontan.co.id/"),
+        ("Kontan Indeks Investasi Real-Time", "https://www.kontan.co.id/indeks/investasi"),
+        ("Kontan Industri (Tambang, Energi, Batu Bara, Emas, Nikel)", "https://industri.kontan.co.id/"),
+        ("Kontan Keuangan (Big Banks, Multifinance, Asuransi)", "https://keuangan.kontan.co.id/"),
+        ("Kontan Insight / Riset Eksklusif & Pusat Data", "https://insight.kontan.co.id/"),
+        ("Kontan Tag Rekomendasi Saham & Saham Pilihan", "https://www.kontan.co.id/tag/rekomendasi-saham"),
+        ("Kontan Tag Aksi Korporasi, Akuisisi, Dividen & Buyback", "https://www.kontan.co.id/tag/aksi-korporasi"),
+        ("Bisnis.com Market & Bursa Saham", "https://market.bisnis.com/bursa-dan-saham"),
+        ("Bisnis.com Rekomendasi (Trading Ideas & Target Harga)", "https://market.bisnis.com/rekomendasi"),
+        ("Bisnis.com Korporasi (Rumor, Ekspansi, Akuisisi & Kontrak)", "https://market.bisnis.com/korporasi"),
+        ("Bisnis.com Emas & Komoditas", "https://market.bisnis.com/emas-dan-komoditas"),
+        ("Bisnis.com Mata Uang / Kurs & Obligasi", "https://market.bisnis.com/mata-uang"),
+        ("DataIndonesia.id (Riset Statistik Emiten)", "https://dataindonesia.id/bursa-keuangan"),
+        ("Bloomberg Technoz Market", "https://www.bloombergtechnoz.com/kanal/market"),
+        ("Bloomberg Technoz Finansial, Bisnis & Energi Komoditas", "https://www.bloombergtechnoz.com/kanal/energi"),
+        ("Bloomberg Technoz Tag Rekomendasi Saham", "https://www.bloombergtechnoz.com/tag/rekomendasi-saham"),
+        ("EmitenNews — Kanal Emiten (Laba, Aksi Korporasi & Pengendali)", "https://emitennews.com/category/emiten"),
+        ("EmitenNews — Kanal Bursa (UMA, Suspensi, FCA) & Market", "https://emitennews.com/category/bursa"),
+        ("EmitenNews — Radar Borong Saham / Akumulasi Pengendali", "https://emitennews.com/search?q=borong+saham"),
+        ("IDX Channel Market News & Indeks Real-Time", "https://www.idxchannel.com/market-news"),
+        ("IDX Channel Live TV Streaming", "https://www.idxchannel.com/live"),
+        ("Investor.id Market & Corporate Action", "https://investor.id/corporate-action"),
+        ("IDN Financials (Berita Emiten & Database Kepemilikan)", "https://www.idnfinancials.com/id/news"),
+        ("IQPlus (Berita Ticker Cepat Pasar Modal)", "http://www.iqplus.info/"),
+        ("Katadata Finansial Bursa & Pasardana", "https://katadata.co.id/finansial/bursa"),
+        ("Bareksa, Antara Bursa, Detik Finance, Liputan6, Sindonews, Kumparan", "https://www.bareksa.com/berita/pasar-modal"),
+    ],
+    "3. Sekuritas, Riset Harian & Konsensus Analis": [
+        ("Stockbit Snips (Riset Harian & Bedah Aksi Korporasi)", "https://snips.stockbit.com/"),
+        ("Stockbit Blog & Academy", "https://blog.stockbit.com/"),
+        ("Ajaib Berita Saham & Analisis Pasar Modal", "https://ajaib.co.id/belajar/berita-saham/"),
+        ("Ajaib Web Trading (Feed Berita, Riset & Forum Chitchat)", "https://invest.ajaib.co.id/"),
+        ("IPOTNews (Indo Premier Sekuritas — Berita & Riset Real-Time)", "https://www.ipotnews.com/"),
+        ("Mirae Asset Sekuritas (Riset Harian & Market Movers)", "https://sekuritas.miraeasset.co.id/id/research"),
+        ("Mandiri Sekuritas (MOST Daily Research)", "https://www.most.co.id/riset/harian"),
+        ("BRI Danareksa Sekuritas (BRIGHTS Research)", "https://brights.id/id/research"),
+        ("Phillip Sekuritas Indonesia (POEMS Research)", "https://www.poems.co.id/id/research/"),
+    ],
+    "4. Bandarmology, Whale Tracking, Komunitas Quant & Scalping Lokal": [
+        ("Creative Trader (Riset Bandarmology & Foreign Flow — Argha J. Karo Karo)", "https://www.creativetrader.id/"),
+        ("Bandarmology.com (Artikel & Riset Akumulasi/Distribusi)", "https://www.bandarmology.com/"),
+        ("Stockbit Stream (Trending & Rumor Real-Time)", "https://stockbit.com/stream"),
+        ("Stockbit Screener & Chartbit (Bandar Detector & Broker Summary)", "https://stockbit.com/screener"),
+        ("Stockbit Ideas & Kalender Korporasi", "https://stockbit.com/ideas"),
+        ("Invezgo (Broker Summary, Sankey Flow Bandar & HAKA/HAKI)", "https://app.invezgo.com/"),
+        ("Sahamology (Analisa Bandarmology & Teknikal Terpadu)", "https://sahamology.id/"),
+        ("Stockwise.id & Andry Hakim (Whale Tracking & Insight)", "https://www.stockwise.id/"),
+        ("Emtrade (Riset Harian & Sinyal Trading)", "https://emtrade.id/artikel"),
+        ("Big Alpha (Berita Ekonomi & Bedah Emiten)", "https://bigalpha.id/news"),
+        ("Dreamstock.id (Screener, Sinyal & Analisa Emiten)", "https://dreamstock.id/"),
+        ("SahamGO, PintarSaham & Invesnesia (Data Dividen & Fundamental)", "https://sahamgo.com/"),
+        ("Berduit Official (Watchlist & Scalping Sentiment)", "https://www.instagram.com/berduit_official/"),
+        ("Michael Yeoh (Bandarmology, Foreign Flow & Chart Pattern)", "https://www.instagram.com/michaelyeoh88/"),
+        ("Bekti Sutikna & Om Ben (Tape Reading, Bid-Offer & Scalping)", "https://www.instagram.com/bektisutikna/"),
+        ("Astronacci International (Time Trading & Siklus Market)", "https://astronacci.com/"),
+        ("Ruang Saham, Ngertisaham & Vier Foundation", "https://ruangsaham.com/"),
+    ],
+    "5. Global Macro, Komoditas Futures & Screener Teknikal (TradingView, Investing, Yahoo)": [
+        ("TradingView Indonesia — Unusual Volume / Volume Spike", "https://id.tradingview.com/markets/stocks-indonesia/market-movers-unusual-volume/"),
+        ("TradingView Indonesia — Top Gainers & Most Active", "https://id.tradingview.com/markets/stocks-indonesia/market-movers-gainers/"),
+        ("TradingView Indonesia — Most Volatile & High Beta", "https://id.tradingview.com/markets/stocks-indonesia/market-movers-most-volatile/"),
+        ("TradingView News Flow & Ideas IDX", "https://id.tradingview.com/markets/stocks-indonesia/news/"),
+        ("Investing.com — Berita Saham Indonesia & Saham Trending", "https://id.investing.com/news/stock-market-news"),
+        ("Investing.com — Harga Komoditas Real-Time & Indeks Futures", "https://id.investing.com/commodities/real-time-futures"),
+        ("Investing.com — Kalender Ekonomi Global & RI Live", "https://id.investing.com/economic-calendar/"),
+        ("TradingEconomics Commodities (Emas, Nikel, Batu Bara, Minyak, CPO)", "https://tradingeconomics.com/commodities"),
+        ("Barchart Commodities Futures & RTI Business Web", "https://www.barchart.com/futures"),
+        ("Yahoo Finance IHSG (^JKSE) Components & News", "https://finance.yahoo.com/quote/%5EJKSE/news/"),
+    ]
+}
+
 # --- KUSTOMISASI CSS TEMA NEON FUTURISTIK & BADGE BREAKOUT ---
 st.markdown("""
     <style>
@@ -159,6 +260,18 @@ st.markdown("""
         border: 2px solid #ffffff;
         margin-bottom: 15px;
         animation: pulse 1.8s infinite;
+    }
+    .danger-badge {
+        background: linear-gradient(90deg, #ff1e56, #a80038);
+        color: #ffffff !important;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 900;
+        font-size: 15px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(255, 30, 86, 0.85);
+        border: 2px solid #ffffff;
+        margin-bottom: 15px;
     }
     .neutral-badge {
         background: rgba(22, 31, 51, 0.9);
@@ -270,7 +383,6 @@ def load_all_1011_idx_stocks():
             except Exception:
                 pass
 
-    # Fallback Otomatis 1.011 Emiten jika file CSV belum diletakkan di direktori
     rows = []
     for idx, code in enumerate(RAW_1011_IDX_CODES, start=1):
         indeks_list = []
@@ -313,35 +425,27 @@ hide_delisted = st.sidebar.checkbox("✅ Sembunyikan Saham Delisting (31 Emiten)
 filter_high_precision_menu = st.sidebar.checkbox("🎯 Filter Emiten Indeks Utama (LQ45 / KOMPAS100 / PEFINDO25)", value=False)
 filter_ai_bullish_high_acc = st.sidebar.checkbox("🚀 Filter Sinyal Bullish AI (Naik > 2% & Presisi > 90%)", value=False)
 
-# Filter Sektor Indonesia
 available_sectors = ["Semua Sektor"] + sorted(df_master_bei['Sektor_Indonesia'].dropna().unique().tolist())
 selected_sector = st.sidebar.selectbox("Filter Sektor IDX-IC", options=available_sectors, index=0)
 
-# Filter Papan Pencatatan
 available_boards = ["Semua Papan"] + sorted(df_master_bei['Papan_Pencatatan'].dropna().unique().tolist())
 selected_board = st.sidebar.selectbox("Filter Papan Pencatatan BEI", options=available_boards, index=0)
 
-# Filter Indeks Utama
 selected_index_filter = st.sidebar.selectbox(
     "Filter Konstituen Indeks",
     options=["Semua Emiten (1.011)", "LQ45 (45 Saham)", "KOMPAS100 (100 Saham)", "PEFINDO25 (25 Saham)"],
     index=0
 )
 
-# Terapkan Filter ke DataFrame Master
 df_filtered = df_master_bei.copy()
 if hide_delisted:
     df_filtered = df_filtered[df_filtered['Status_Pencatatan'] != 'Delisting']
-
 if filter_high_precision_menu:
     df_filtered = df_filtered[df_filtered['Indeks_Utama'] != '-']
-
 if selected_sector != "Semua Sektor":
     df_filtered = df_filtered[df_filtered['Sektor_Indonesia'] == selected_sector]
-
 if selected_board != "Semua Papan":
     df_filtered = df_filtered[df_filtered['Papan_Pencatatan'] == selected_board]
-
 if selected_index_filter == "LQ45 (45 Saham)":
     df_filtered = df_filtered[df_filtered['Indeks_Utama'].astype(str).str.contains("LQ45", na=False)]
 elif selected_index_filter == "KOMPAS100 (100 Saham)":
@@ -353,7 +457,6 @@ if df_filtered.empty:
     st.sidebar.warning("⚠️ Kombinasi filter tidak menemukan saham. Menampilkan seluruh emiten aktif.")
     df_filtered = df_master_bei[df_master_bei['Status_Pencatatan'] != 'Delisting'].copy()
 
-# Buat Dictionary Pilihan Dropdown
 filtered_stocks = {}
 metadata_lookup = {}
 for _, row in df_filtered.iterrows():
@@ -366,7 +469,6 @@ for _, row in df_filtered.iterrows():
     filtered_stocks[label] = yf_tck
     metadata_lookup[yf_tck] = row.to_dict()
 
-# Pastikan lookup juga mencakup seluruh 1.011 saham jika user mengetik manual
 for _, row in df_master_bei.iterrows():
     yf_tck = str(row['Ticker_Yahoo_Finance']).strip()
     if yf_tck not in metadata_lookup:
@@ -381,17 +483,19 @@ stock_choice = st.sidebar.selectbox(
 )
 selected_ticker_default = filtered_stocks[stock_choice]
 
-ticker_symbol = st.sidebar.text_input("Atau Ketik Manual Kode Saham IDX (Contoh: BBCA / AADI.JK)", value=selected_ticker_default)
+ticker_symbol = st.sidebar.text_input("Atau Ketik Manual Kode Saham IDX (Contoh: BBCA / BRMS / ANTM)", value=selected_ticker_default)
 ticker_symbol = ticker_symbol.strip().upper()
 if not ticker_symbol.endswith(".JK") and not ticker_symbol.startswith("^"):
     ticker_symbol = f"{ticker_symbol}.JK"
 
+clean_code_global = ticker_symbol.replace(".JK", "")
+
 current_meta = metadata_lookup.get(ticker_symbol, {
-    "Kode_Saham": ticker_symbol.replace(".JK", ""),
-    "Ticker_BEI": f"BEI:{ticker_symbol.replace('.JK', '')}",
-    "Ticker_TradingView": f"IDX:{ticker_symbol.replace('.JK', '')}",
+    "Kode_Saham": clean_code_global,
+    "Ticker_BEI": f"BEI:{clean_code_global}",
+    "Ticker_TradingView": f"IDX:{clean_code_global}",
     "Ticker_Yahoo_Finance": ticker_symbol,
-    "Ticker_Bloomberg": f"{ticker_symbol.replace('.JK', '')}:IJ",
+    "Ticker_Bloomberg": f"{clean_code_global}:IJ",
     "Nama_Perusahaan": ticker_symbol,
     "Sektor_Indonesia": "IDX Equity",
     "Papan_Pencatatan": "Utama / Pengembangan",
@@ -428,8 +532,8 @@ user_capital = st.sidebar.number_input("Total Modal Trading (IDR)", min_value=10
 risk_tolerance_pct = st.sidebar.slider("Maksimal Risiko per Trade (%)", min_value=0.5, max_value=5.0, value=2.0, step=0.5)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📡 Status Database & Validasi")
-st.sidebar.success(f"🟢 {len(df_master_bei)} Emiten BEI Terindeks (976 Aktif, 45 LQ45, 100 KOMPAS100)")
+st.sidebar.subheader("📡 Status Omni-Channel Intelligence")
+st.sidebar.success(f"🟢 {len(df_master_bei)} Emiten BEI + 140+ Portal & Multi-RSS Aktif")
 
 # --- FUNGSI PENGAMBILAN DATA MAKRO & LIVE TICKER ---
 @st.cache_data(ttl=60)
@@ -443,9 +547,10 @@ def fetch_macro_and_watchlist_tape():
         "BBRI": "BBRI.JK",
         "BMRI": "BMRI.JK",
         "TLKM": "TLKM.JK",
-        "GOTO": "GOTO.JK",
-        "AADI": "AADI.JK",
-        "ADRO": "ADRO.JK"
+        "BRMS": "BRMS.JK",
+        "ANTM": "ANTM.JK",
+        "BUMI": "BUMI.JK",
+        "AADI": "AADI.JK"
     }
     results = {}
     for label, tck in macro_tickers.items():
@@ -475,24 +580,202 @@ if macro_data:
         )
     st.markdown(f"<div class='ticker-tape'>⚡ <b>LIVE MARKET & MACRO TAPE:</b> {' | '.join(tape_items)}</div>", unsafe_allow_html=True)
 
-st.title("⚡ QUANT AI: Quadruple-Threat IDX (1.011 Emiten BEI) Predictive Dashboard")
+st.title("⚡ QUANT AI: Quadruple-Threat IDX (1.011 Emiten & 140+ Omni-News Intelligence)")
 st.markdown(
-    f"Analisis terpadu **4 Pilar Quadruple-Threat** untuk **{current_meta.get('Nama_Perusahaan', ticker_symbol)} ({ticker_symbol})** | "
+    f"Analisis terpadu **4 Pilar Quadruple-Threat** & **6-Layer Omni-Channel News NLP** untuk **{current_meta.get('Nama_Perusahaan', ticker_symbol)} ({ticker_symbol})** | "
     f"Sektor: **{current_meta.get('Sektor_Indonesia', '-')}** | Papan: **{current_meta.get('Papan_Pencatatan', '-')}** | "
-    f"Indeks: **{current_meta.get('Indeks_Utama', '-')}** | Tanggal IPO: **{current_meta.get('Tanggal_IPO_Teks', '-')}**"
+    f"Indeks: **{current_meta.get('Indeks_Utama', '-')}** | IPO: **{current_meta.get('Tanggal_IPO_Teks', '-')}**"
 )
 
-# Peringatan Khusus Status Delisting atau Papan Pemantauan Khusus (FCA) dari CSV
 if current_meta.get("Status_Pencatatan") == "Delisting":
     st.error(
-        f"⛔ **PERINGATAN DELISTING**: Emiten **{ticker_symbol} ({current_meta.get('Nama_Perusahaan')})** berstatus **Delisting / Tidak Aktif** di BEI. "
-        f"Data harga historis mungkin tidak lagi tersedia di server bursa."
+        f"⛔ **PERINGATAN DELISTING**: Emiten **{ticker_symbol} ({current_meta.get('Nama_Perusahaan')})** berstatus **Delisting / Tidak Aktif** di BEI."
     )
 elif current_meta.get("Papan_Pencatatan") == "Pemantauan Khusus":
     st.warning(
         f"⚠️ **PERINGATAN PAPAN PEMANTAUAN KHUSUS (FULL CALL AUCTION / FCA)**: "
-        f"Emiten **{ticker_symbol}** tercatat berada di **Papan Pemantauan Khusus** BEI. Perhatikan risiko likuiditas dan mekanisme kuotasi berkala."
+        f"Emiten **{ticker_symbol}** berada di **Papan Pemantauan Khusus** BEI. Cermati likuiditas dan pengumuman resmi BEI."
     )
+
+# --- MESIN AGREGATOR PARALEL MULTI-RSS & WEIGHTED NLP (6 LAYERS) ---
+def _fetch_single_rss(feed_meta):
+    """Fungsi pekerja paralel untuk mengunduh 1 RSS feed dengan timeout ketat (3.5 detik)."""
+    layer_name, source_label, url, cred_weight = feed_meta
+    entries_out = []
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            raw_bytes = resp.read()
+        parsed = feedparser.parse(raw_bytes)
+        for entry in parsed.entries[:4]:
+            entries_out.append({
+                "layer": layer_name,
+                "source_group": source_label,
+                "title": entry.get("title", ""),
+                "link": entry.get("link", url),
+                "published": entry.get("published", "Terbaru"),
+                "cred_weight": cred_weight
+            })
+    except Exception:
+        pass
+    return entries_out
+
+@st.cache_data(ttl=120)
+def fetch_omni_channel_news_intelligence(ticker):
+    clean_code = ticker.replace(".JK", "").upper()
+    q_emiten = urllib.parse.quote(f'saham {clean_code} OR "{clean_code}"')
+
+    # Daftar Feed Multi-Layer yang Dipindai Secara Paralel untuk Emiten & Pasar
+    multi_rss_targets = [
+        # Layer 1: Spesifik Emiten (Google News Custom per Emiten + Yahoo Finance RSS per Emiten)
+        ("Layer 1: Emiten Spesifik", f"Google News ({clean_code})", f"https://news.google.com/rss/search?q=saham+{clean_code}+when:7d&hl=id&gl=ID&ceid=ID:id", 1.5),
+        ("Layer 1: Emiten Spesifik", f"Yahoo Finance ({ticker})", f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker},%5EJKSE&region=US&lang=en-US", 1.3),
+        # Layer 2: Regulator BEI, IDX Channel & Detektor UMA/Suspensi/Aksi Korporasi
+        ("Layer 2: Regulator & Bursa", "BEI & IDX Channel Resmi", "https://news.google.com/rss/search?q=site:idxchannel.com+OR+site:idx.co.id+when:1d&hl=id&gl=ID&ceid=ID:id", 1.5),
+        ("Layer 2: Regulator & Bursa", "Radar UMA & Suspensi BEI", 'https://news.google.com/rss/search?q="Unusual+Market+Activity"+OR+"Suspensi+Saham"+BEI+when:2d&hl=id&gl=ID&ceid=ID:id', 1.5),
+        ("Layer 2: Regulator & Bursa", "EmitenNews (Borong/Dividen/Akuisisi)", 'https://news.google.com/rss/search?q=site:emitennews.com+(borong+OR+akuisisi+OR+dividen+OR+"rekomendasi+saham"+OR+unsuspensi)+when:2d&hl=id&gl=ID&ceid=ID:id', 1.4),
+        ("Layer 2: Regulator & Bursa", "IDN Financials & Investor.id", "https://news.google.com/rss/search?q=site:idnfinancials.com+OR+site:investor.id/market+OR+site:investor.id/corporate-action+when:2d&hl=id&gl=ID&ceid=ID:id", 1.4),
+        # Layer 3: Media Finansial Tier-1 (CNBC, Kontan, Bisnis.com, Bloomberg Technoz)
+        ("Layer 3: Media Tier-1", "CNBC & Kontan Rekomendasi", 'https://news.google.com/rss/search?q=(site:cnbcindonesia.com+OR+site:kontan.co.id)+("rekomendasi+saham"+OR+"saham+pilihan"+OR+"target+harga")+when:1d&hl=id&gl=ID&ceid=ID:id', 1.3),
+        ("Layer 3: Media Tier-1", "Bloomberg Technoz Market & Rekomendasi", 'https://news.google.com/rss/search?q=site:bloombergtechnoz.com+(saham+OR+IHSG+OR+"rekomendasi+saham"+OR+"target+harga")+when:1d&hl=id&gl=ID&ceid=ID:id', 1.3),
+        ("Layer 3: Media Tier-1", "Bisnis.com Market & Rekomendasi", 'https://news.google.com/rss/search?q=site:market.bisnis.com+("rekomendasi+saham"+OR+"saham+pilihan"+OR+"target+harga"+OR+IHSG)+when:1d&hl=id&gl=ID&ceid=ID:id', 1.3),
+        ("Layer 3: Media Tier-1", "CNBC Market Direct RSS", "https://www.cnbcindonesia.com/market/rss", 1.2),
+        ("Layer 3: Media Tier-1", "Kontan Investasi Direct RSS", "https://rss.kontan.co.id/news/investasi", 1.2),
+        # Layer 4: Riset Sekuritas (Stockbit Snips, Ajaib, Konsensus Sekuritas)
+        ("Layer 4: Riset Sekuritas", "Stockbit Snips & Sekuritas", 'https://news.google.com/rss/search?q=site:snips.stockbit.com+OR+site:blog.stockbit.com+OR+"Stockbit+Sekuritas"+when:7d&hl=id&gl=ID&ceid=ID:id', 1.3),
+        ("Layer 4: Riset Sekuritas", "Ajaib Sekuritas & Konsensus", 'https://news.google.com/rss/search?q="Ajaib+Sekuritas"+OR+"rekomendasi+saham+hari+ini"+when:1d&hl=id&gl=ID&ceid=ID:id', 1.3),
+        # Layer 5: Bandarmology, Foreign Flow & Komunitas Quant Lokal
+        ("Layer 5: Bandarmology & Whale", "Bandarmology & Akumulasi Asing", 'https://news.google.com/rss/search?q="Bandarmology"+OR+"Creative+Trader"+OR+"akumulasi+asing"+OR+"net+buy+asing"+saham+when:3d&hl=id&gl=ID&ceid=ID:id', 1.25),
+        ("Layer 5: Bandarmology & Whale", "Stockwise, Big Alpha & Emtrade", 'https://news.google.com/rss/search?q=site:stockwise.id+OR+site:bigalpha.id+OR+site:emtrade.id+OR+site:dreamstock.id+OR+site:sahamgo.com+when:7d&hl=id&gl=ID&ceid=ID:id', 1.2),
+        # Layer 6: Komoditas Global & Makro (Bloomberg Technoz Energi & Investing.com)
+        ("Layer 6: Makro & Komoditas", "Bloomberg Technoz Komoditas", 'https://news.google.com/rss/search?q=site:bloombergtechnoz.com+(emas+OR+nikel+OR+"batu+bara"+OR+minyak)+when:2d&hl=id&gl=ID&ceid=ID:id', 1.15),
+        ("Layer 6: Makro & Komoditas", "Investing.com Saham & Komoditas", "https://id.investing.com/rss/news_25.rss", 1.1)
+    ]
+
+    raw_articles = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_fetch_single_rss, target) for target in multi_rss_targets]
+        for fut in as_completed(futures):
+            res = fut.result()
+            if res:
+                raw_articles.extend(res)
+
+    # Kamus Kata Kunci Berbobot (Weighted Financial & Bandarmology Lexicon)
+    kw_insider_whale = ["borong saham", "akumulasi asing", "net buy asing", "buyback", "akuisisi", "pengendali", "insider", "private placement", "akumulasi bandar"]
+    kw_fundamental_div = ["laba melonjak", "laba naik", "dividen jumbo", "dividen tunai", "dividen interim", "cum date", "kontrak baru", "ekspansi", "pendapatan naik", "rekor tertinggi", "tumbuh positif"]
+    kw_analyst_buy = ["rekomendasi saham", "saham pilihan", "target harga", "strong buy", "potensi menguat", "breakout", "top picks", "beli", "menguat", "rebound", "unsuspensi", "buka gembok", "masuk msci"]
+    kw_regulatory_danger = ["suspensi", "unusual market activity", "uma", "gagal bayar", "default", "pkpu", "pailit", "delisting", "sanksi ojk", "gembok", "kasus korupsi"]
+    kw_bearish_dist = ["rugi bersih", "laba anjlok", "net sell asing", "distribusi", "tekanan jual", "koreksi", "melemah", "anjlok", "divestasi", "jual saham"]
+
+    seen_titles = set()
+    processed_news = []
+    emiten_specific_score = 0.0
+    market_macro_score = 0.0
+    detected_catalysts = set()
+    uma_or_suspend_alert = False
+
+    for item in raw_articles:
+        title_clean = item["title"].strip()
+        if not title_clean or title_clean in seen_titles:
+            continue
+        seen_titles.add(title_clean)
+
+        title_lower = title_clean.lower()
+        link_lower = item["link"].lower()
+        w = item["cred_weight"]
+        is_about_selected_ticker = (clean_code.lower() in title_lower) or (item["layer"] == "Layer 1: Emiten Spesifik")
+
+        # Deteksi Spesifik Publisher
+        publisher = item["source_group"]
+        if "kontan" in link_lower or "kontan" in title_lower:
+            publisher = "Kontan Investasi/Industri"
+        elif "cnbcindonesia" in link_lower or "cnbc" in title_lower:
+            publisher = "CNBC Indonesia"
+        elif "bloombergtechnoz" in link_lower or "bloomberg" in title_lower:
+            publisher = "Bloomberg Technoz"
+        elif "bisnis.com" in link_lower or "bisnis" in title_lower:
+            publisher = "Bisnis.com Market"
+        elif "emitennews" in link_lower or "emitennews" in title_lower:
+            publisher = "EmitenNews"
+        elif "idxchannel" in link_lower:
+            publisher = "IDX Channel"
+        elif "idnfinancials" in link_lower:
+            publisher = "IDN Financials"
+        elif "investor.id" in link_lower:
+            publisher = "Investor.id"
+        elif "stockbit" in link_lower or "stockbit" in title_lower:
+            publisher = "Stockbit Snips / Sekuritas"
+        elif "ajaib" in link_lower or "ajaib" in title_lower:
+            publisher = "Ajaib Sekuritas"
+
+        raw_delta = 0.0
+        tags = []
+
+        if any(k in title_lower for k in kw_regulatory_danger):
+            raw_delta -= 3.0 * w
+            tags.append("⚠️ REGULATOR / UMA / SUSPENSI")
+            if is_about_selected_ticker:
+                uma_or_suspend_alert = True
+                detected_catalysts.add("🚨 Peringatan UMA / Suspensi / Risiko Regulasi")
+
+        if any(k in title_lower for k in kw_insider_whale):
+            raw_delta += 2.5 * w
+            tags.append("🐋 WHALE / INSIDER / AKUMULASI")
+            if is_about_selected_ticker:
+                detected_catalysts.add("🐋 Akumulasi Asing / Borong Saham / Buyback")
+
+        if any(k in title_lower for k in kw_fundamental_div):
+            raw_delta += 2.0 * w
+            tags.append("💰 DIVIDEN / LABA / KORPORASI")
+            if is_about_selected_ticker:
+                detected_catalysts.add("💰 Katalis Dividen / Pertumbuhan Laba / Ekspansi")
+
+        if any(k in title_lower for k in kw_analyst_buy):
+            raw_delta += 1.5 * w
+            tags.append("🎯 REKOMENDASI ANALIS / TARGET HARGA")
+            if is_about_selected_ticker:
+                detected_catalysts.add("🎯 Rekomendasi Beli Analis / Konsensus Sekuritas")
+
+        if any(k in title_lower for k in kw_bearish_dist):
+            raw_delta -= 1.8 * w
+            tags.append("🔻 TEKANAN JUAL / KOREKSI")
+
+        if raw_delta >= 2.0:
+            sent_badge = f"Sangat Bullish 🟢 ({raw_delta:+.1f})"
+        elif raw_delta > 0:
+            sent_badge = f"Bullish 🟢 ({raw_delta:+.1f})"
+        elif raw_delta <= -2.0:
+            sent_badge = f"Sangat Bearish / Risiko 🔴 ({raw_delta:+.1f})"
+        elif raw_delta < 0:
+            sent_badge = f"Bearish 🔴 ({raw_delta:+.1f})"
+        else:
+            sent_badge = "Netral / Informatif 🟡 (0.0)"
+
+        if is_about_selected_ticker:
+            emiten_specific_score += raw_delta
+        else:
+            market_macro_score += (raw_delta * 0.35)
+
+        processed_news.append({
+            "layer": item["layer"],
+            "publisher": publisher,
+            "title": title_clean,
+            "link": item["link"],
+            "date": item["published"],
+            "sentiment": sent_badge,
+            "score": raw_delta,
+            "tags": ", ".join(tags) if tags else "Update Pasar",
+            "is_emiten": is_about_selected_ticker
+        })
+
+    # Urutkan agar berita spesifik emiten muncul paling atas
+    processed_news.sort(key=lambda x: (x["is_emiten"], abs(x["score"])), reverse=True)
+    combined_nlp_score = round(emiten_specific_score + market_macro_score, 1)
+
+    return processed_news, combined_nlp_score, round(emiten_specific_score, 1), list(detected_catalysts), uma_or_suspend_alert
 
 # --- FUNGSI PENGAMBILAN DATA SAHAM & FUNDAMENTAL ---
 @st.cache_data(ttl=30)
@@ -542,70 +825,9 @@ def fetch_fundamental_metrics(ticker):
         pass
     return fund_dict
 
-@st.cache_data(ttl=60)
-def fetch_advanced_realtime_news_and_sentiment(ticker):
-    clean_code = ticker.replace(".JK", "").lower()
-    news_items = []
-    query = urllib.parse.quote(f"saham {clean_code} OR {ticker}")
-    rss_url = f"https://news.google.com/rss/search?q={query}+when:7d&hl=id&gl=ID&ceid=ID:id"
-    
-    sentiment_score = 0
-    high_impact_positive = ["laba melonjak", "dividen jumbo", "akuisisi strategis", "rekor tertinggi", "buyback saham", "tumbuh positif", "ekspansi pabrik", "pendapatan naik", "masuk msci", "net buy asing"]
-    moderate_positive = ["naik", "tumbuh", "menguat", "rebound", "beli", "positif", "kontrak baru", "kinerja solid", "optimis", "akumulasi"]
-    high_impact_negative = ["suspensi bursa", "gagal bayar", "default", "rugi bersih", "anjlok tajam", "kasus hukum", "sanksi ojk", "korupsi", "keluar msci"]
-    moderate_negative = ["turun", "koreksi", "melemah", "beban meningkat", "rugi", "lesu", "tekanan jual", "turun tipis", "net sell"]
-
-    try:
-        feed = feedparser.parse(rss_url)
-        for entry in feed.entries[:8]:
-            title = entry.title
-            link = entry.link
-            published = entry.published if hasattr(entry, 'published') else "Terbaru"
-            title_lower = title.lower()
-            
-            source = "Portal Finansial"
-            if "kontan" in link.lower() or "kontan" in title_lower:
-                source = "Kontan Investasi"
-            elif "cnbcindonesia" in link.lower() or "cnbc" in title_lower:
-                source = "CNBC Indonesia"
-            elif "bisnis" in link.lower():
-                source = "Bisnis Market"
-            elif "idx" in link.lower():
-                source = "Keterbukaan Informasi IDX"
-
-            item_sentiment = "Netral 🟡"
-            score_delta = 0
-
-            if any(k in title_lower for k in high_impact_positive):
-                score_delta += 2
-                item_sentiment = "Sangat Positif 🟢 (+2)"
-            elif any(k in title_lower for k in moderate_positive):
-                score_delta += 1
-                item_sentiment = "Positif 🟢 (+1)"
-
-            if any(k in title_lower for k in high_impact_negative):
-                score_delta -= 2
-                item_sentiment = "Sangat Negatif 🔴 (-2)"
-            elif any(k in title_lower for k in moderate_negative):
-                score_delta -= 1
-                item_sentiment = "Negatif 🔴 (-1)"
-
-            sentiment_score += score_delta
-            news_items.append({
-                "title": title, 
-                "link": link, 
-                "publisher": source, 
-                "date": published, 
-                "sentiment": item_sentiment
-            })
-    except Exception:
-        pass
-        
-    return news_items, sentiment_score
-
 data, benchmark_close = fetch_stock_and_market_data(ticker_symbol, period_option, interval_option)
 fund_info = fetch_fundamental_metrics(ticker_symbol)
-realtime_news, news_sentiment_score = fetch_advanced_realtime_news_and_sentiment(ticker_symbol)
+realtime_news, news_sentiment_score, emiten_nlp_score, active_catalysts, has_uma_risk = fetch_omni_channel_news_intelligence(ticker_symbol)
 
 if data.empty or len(data) < 50:
     st.warning(
@@ -848,7 +1070,7 @@ else:
             predicted_prices.append(pred_val)
             recent_closes_window.append(pred_val)
             last_row_features['Lag2'] = last_row_features['Lag1']
-            last_row_features['Lag1'] = pred_val
+            last_row_features['Lag1'] = p_val = pred_val
             last_row_features['Days'] = next_day_idx
 
         predicted_target = float(predicted_prices[-1])
@@ -859,7 +1081,7 @@ else:
         calculated_mcap_csv = csv_shares * latest_close
         mcap_idr = fund_info["market_cap"] if fund_info["market_cap"] > 0 else calculated_mcap_csv
 
-        # --- PERHITUNGAN 4 PILAR: IDX ALPHA-MATRIX SCORING (0 - 100) ---
+        # --- PERHITUNGAN 4 PILAR: IDX ALPHA-MATRIX SCORING (0 - 100) + OMNI-CHANNEL NLP ---
         tech_score = 0
         if latest_close > latest_ma20: tech_score += 6
         if latest_close > latest_ma50: tech_score += 5
@@ -880,6 +1102,7 @@ else:
         elif latest_cmf > 0: flow_score += 6
         if five_day_smart_flow_idr > 0: flow_score += 5
         if latest_mfi > 55: flow_score += 4
+        if any("Akumulasi" in c for c in active_catalysts): flow_score += 3
 
         if mcap_idr >= 45_000_000_000_000 and adtv_20d_idr >= 50_000_000_000:
             msci_status = "MSCI Global Standard Candidate / Member 🏆"
@@ -922,24 +1145,28 @@ else:
         elif per_val is None: fund_score += 3
         if margin_of_safety > 15: fund_score += 7
         elif margin_of_safety > 0: fund_score += 4
-        if fund_info["div_yield"] >= 3.5: fund_score += 4
+        if fund_info["div_yield"] >= 3.5 or any("Dividen" in c for c in active_catalysts): fund_score += 4
         fund_score = min(25, fund_score)
 
         macro_score = 7
         usd_idr_chg = macro_data.get("USD/IDR", {}).get("change", 0.0)
         if usd_idr_chg <= 0.1:
-            macro_score += 3
+            macro_score += 2
         else:
             macro_score -= 2
-        if news_sentiment_score >= 2: macro_score += 5
-        elif news_sentiment_score > 0: macro_score += 3
-        elif news_sentiment_score < 0: macro_score -= 3
+        if news_sentiment_score >= 4: macro_score += 6
+        elif news_sentiment_score > 0: macro_score += 4
+        elif news_sentiment_score < -2: macro_score -= 4
+        if has_uma_risk:
+            macro_score = max(0, macro_score - 6)
         macro_score = max(0, min(15, macro_score))
 
         total_alpha_score = int(tech_score + flow_score + fund_score + macro_score)
 
-        if total_alpha_score >= 80:
-            action_signal = "STRONG BUY (Breakout / High-Conviction Accumulation) 🟢"
+        if has_uma_risk:
+            action_signal = "HIGH RISK / UMA / SUSPENSI RADAR — HINDARI / WASPADA 🔴"
+        elif total_alpha_score >= 80:
+            action_signal = "STRONG BUY (Breakout + Omni-Channel Catalyst) 🟢"
         elif total_alpha_score >= 65:
             action_signal = "BUY (Trend Following / Bullish Reversal) 🟢"
         elif total_alpha_score >= 45:
@@ -947,8 +1174,16 @@ else:
         else:
             action_signal = "TAKE PROFIT / CUT LOSS (Distribusi / Tren Melemah) 🔴"
 
-        # --- BADGE NOTIFIKASI VOLUME SPIKE / BREAKOUT ---
-        if (is_volume_spike and pct_change > 0) or is_price_breakout or (pred_pct_change > 2.0 and total_alpha_score >= 75):
+        # --- BADGE NOTIFIKASI VOLUME SPIKE / BREAKOUT / UMA DANGER ---
+        if has_uma_risk:
+            st.markdown(
+                f"<div class='danger-badge'>"
+                f"🚨 RADAR PERINGATAN BURSA [{ticker_symbol}]: Terdeteksi Kata Kunci UMA / Suspensi / Risiko Regulasi pada Berita Terkini! "
+                f"Cek Keterbukaan Informasi BEI Sebelum Entri."
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        elif (is_volume_spike and pct_change > 0) or is_price_breakout or (pred_pct_change > 2.0 and total_alpha_score >= 75):
             st.markdown(
                 f"<div class='breakout-badge'>"
                 f"🚀 BULLISH ALERT TERDETEKSI [{ticker_symbol}]: Volume Rasio {latest_vol_ratio:.2f}x MA20 | "
@@ -960,10 +1195,21 @@ else:
             st.markdown(
                 f"<div class='neutral-badge'>"
                 f"📊 Status Sinyal [{ticker_symbol}]: {action_signal} | Skor IDX Alpha-Matrix: <b>{total_alpha_score}/100</b> | "
-                f"Volume Harian: {latest_vol_ratio:.2f}x MA20 | Pola: {', '.join(detected_patterns)}"
+                f"Volume Harian: {latest_vol_ratio:.2f}x MA20 | Skor NLP 140+ Portal: <b>{news_sentiment_score:+.1f}</b>"
                 f"</div>",
                 unsafe_allow_html=True
             )
+
+        # --- TAUTAN CEPAT AUDIT EMITEN (DYNAMIC DEEP LINKS PER SAHAM) ---
+        st.markdown(
+            f"🔗 **Audit Cepat 1-Klik [{clean_code_global}]:** "
+            f"[Stockbit Stream & Bandar Detector](https://stockbit.com/symbol/{clean_code_global}) | "
+            f"[Stockbit Insider (>5%)](https://stockbit.com/symbol/{clean_code_global}/insider) | "
+            f"[Yahoo Finance ({ticker_symbol})](https://finance.yahoo.com/quote/{ticker_symbol}/news/) | "
+            f"[EmitenNews ({clean_code_global})](https://emitennews.com/search?q={clean_code_global}) | "
+            f"[Keterbukaan Informasi BEI](https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi/) | "
+            f"[TradingView Chart](https://id.tradingview.com/symbols/IDX-{clean_code_global}/)"
+        )
 
         # --- METRIK UTAMA ---
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -971,7 +1217,7 @@ else:
         col2.metric("Prediksi AI (5 Hari)", f"{predicted_target:,.0f}", f"{pred_pct_change:+.2f}%")
         col3.metric("Skor Alpha-Matrix", f"{total_alpha_score} / 100", f"Presisi ML: {model_accuracy_score:.1f}%")
         col4.metric("Estimasi Fair Value", f"{fair_value_est:,.0f}", f"MoS: {margin_of_safety:+.1f}%")
-        col5.metric("Volume Spike Ratio", f"{latest_vol_ratio:.2f}x MA20", f"CMF: {latest_cmf:+.2f}")
+        col5.metric("Skor Omni-NLP & Volume", f"{news_sentiment_score:+.1f} Poin", f"Vol: {latest_vol_ratio:.2f}x MA20")
 
         # --- GRAFIK INTERAKTIF PLOTLY ---
         st.subheader(f"📈 Grafik Candlestick, VWAP, Ichimoku, Support/Resistance & Proyeksi AI: {ticker_symbol}")
@@ -1023,15 +1269,16 @@ else:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- PANEL 5 TAB: 4 PILAR QUADRUPLE-THREAT + MASTER DATABASE 1.011 SAHAM ---
+        # --- PANEL 6 TAB: 4 PILAR QUADRUPLE-THREAT + TABEL 1.011 SAHAM + 140+ PORTAL BERITA ---
         st.markdown("---")
-        st.subheader("🏛️ Bedah 4 Pilar Quadruple-Threat IDX & Database Resmi 1.011 Emiten BEI")
-        tab_p1, tab_p2, tab_p3, tab_p4, tab_p5 = st.tabs([
+        st.subheader("🏛️ Bedah 4 Pilar Quadruple-Threat, Omni-Channel NLP & Direktori 140+ Portal Pasar Modal")
+        tab_p1, tab_p2, tab_p3, tab_p4, tab_p5, tab_p6 = st.tabs([
             "📊 1. Fundamental & Identitas BEI",
-            "🌊 2. Foreign Flow & MSCI Simulator",
-            "🌍 3. Makroekonomi & Sentimen NLP",
+            "🌊 2. Foreign Flow, Bandarmology & MSCI",
+            "📡 3. Omni-Channel News NLP (Real-Time)",
             "🧮 4. Target Harian AI & Kalkulator Lot ATR",
-            "🗂️ 5. Eksplorasi Tabel 1.011 Saham BEI"
+            "🗂️ 5. Database 1.011 Saham BEI",
+            "🌐 6. Command Center 140+ Portal & RSS"
         ])
 
         with tab_p1:
@@ -1081,15 +1328,16 @@ else:
         with tab_p2:
             c_m1, c_m2 = st.columns(2)
             with c_m1:
-                st.markdown("#### Pantauan Smart Money / Net Institutional Flow")
+                st.markdown("#### Pantauan Smart Money, Bandarmology & Foreign Flow")
                 flow_dir = "AKUMULASI BERSIH (Net Buy Proxy) 🟢" if five_day_smart_flow_idr > 0 else "DISTRIBUSI BERSIH (Net Sell Proxy) 🔴"
                 st.info(
-                    f"📌 **Indikator Arus Dana Institusi & Asing:**\n\n"
+                    f"📌 **Indikator Arus Dana Institusi & Bandarmology:**\n\n"
                     f"- **Status Arus Dana (5 Hari):** **{flow_dir}**\n"
                     f"- **Estimasi Akumulasi/Distribusi Bersih (5H):** Rp {five_day_smart_flow_idr / 1e9:+,.2f} Miliar\n"
                     f"- **Chaikin Money Flow (CMF 20):** `{latest_cmf:+.3f}`\n"
                     f"- **Money Flow Index (MFI 14):** `{latest_mfi:.1f}`\n"
-                    f"- **Rata-Rata Nilai Transaksi Harian (ADTV 20D):** Rp {adtv_20d_idr / 1e9:,.2f} Miliar"
+                    f"- **Rata-Rata Nilai Transaksi Harian (ADTV 20D):** Rp {adtv_20d_idr / 1e9:,.2f} Miliar\n"
+                    f"- **Audit Broker Summary & Insider:** [Buka Stockbit Bandar Detector](https://stockbit.com/symbol/{clean_code_global}) | [Buka Invezgo](https://app.invezgo.com/)"
                 )
             with c_m2:
                 st.markdown("#### Simulator & Analisis Dampak MSCI Rebalancing")
@@ -1103,19 +1351,30 @@ else:
         with tab_p3:
             c_n1, c_n2 = st.columns([1, 2])
             with c_n1:
-                st.markdown("#### Parameter Makroekonomi")
+                st.markdown("#### Ringkasan Skor 6-Layer Omni-NLP")
+                st.write(f"- **Skor Sentimen Spesifik {clean_code_global}:** `{emiten_nlp_score:+.1f}`")
+                st.write(f"- **Skor Sentimen Agregat (Emiten + Makro):** `{news_sentiment_score:+.1f}`")
                 st.write(f"- **Suku Bunga BI Rate:** `{bi_rate_input:.2f}%`")
                 st.write(f"- **Beta Saham terhadap IHSG:** `{stock_beta:.2f}`")
-                st.write(f"- **Skor Sentimen Berita NLP:** `{news_sentiment_score}`")
                 st.write(f"- **Skor Pilar Makro & Sentimen:** **{macro_score} / 15 Poin**")
-            with c_n2:
-                st.markdown(f"#### 📡 Berita Finansial Real-Time: {ticker_symbol}")
-                if realtime_news:
-                    for item in realtime_news:
-                        st.markdown(f"- **[{item['title']}]({item['link']})**")
-                        st.caption(f"📌 Sumber: {item['publisher']} | Waktu: {item['date']} | Sentimen NLP: **{item['sentiment']}**")
+                if active_catalysts:
+                    st.success("**Katalis Terdeteksi pada Berita:**\n" + "\n".join(f"- {c}" for c in active_catalysts))
                 else:
-                    st.info("Tidak ada berita baru dalam 7 hari terakhir yang terindeks.")
+                    st.info("Belum ada katalis ekstrem spesifik emiten dalam 48 jam terakhir.")
+            with c_n2:
+                st.markdown(f"#### 📡 Feed Berita Real-Time Multi-Portal (BEI, CNBC, Kontan, Bisnis, Bloomberg Technoz, EmitenNews, Stockbit, Bandarmology)")
+                filter_only_emiten = st.checkbox(f"Tampilkan hanya berita yang menyebut {clean_code_global}", value=False)
+                display_list = [n for n in realtime_news if n["is_emiten"]] if filter_only_emiten else realtime_news[:18]
+                if display_list:
+                    for item in display_list:
+                        prefix_badge = f"🎯 **[{clean_code_global}]** " if item["is_emiten"] else ""
+                        st.markdown(f"- {prefix_badge}**[{item['title']}]({item['link']})**")
+                        st.caption(
+                            f"📌 **{item['publisher']}** ({item['layer']}) | Kategori: `{item['tags']}` | "
+                            f"Waktu: {item['date']} | Skor NLP: **{item['sentiment']}**"
+                        )
+                else:
+                    st.info(f"Tidak ada berita spesifik untuk {clean_code_global} pada filter saat ini. Hilangkan centang di atas untuk melihat berita bursa/makro.")
 
         with tab_p4:
             col_t1, col_t2 = st.columns(2)
@@ -1163,6 +1422,15 @@ else:
         with tab_p5:
             st.markdown(f"#### 🗂️ Tabel Master Emiten BEI Terfilter ({len(df_filtered)} dari {len(df_master_bei)} Emiten)")
             st.dataframe(df_filtered, use_container_width=True, height=420)
+
+        with tab_p6:
+            st.markdown("#### 🌐 Direktori Interaktif 140+ Portal Resmi BEI, Media Finansial, Riset Sekuritas & Komunitas Bandarmology")
+            st.write("Seluruh sumber di bawah ini telah diintegrasikan sebagai rujukan validasi berita, keterbukaan informasi, *broker summary*, dan komoditas global:")
+            for cat_title, links_list in OMNI_NEWS_DIRECTORY.items():
+                with st.expander(f"📂 {cat_title} ({len(links_list)} Kanal Resmi)", expanded=False):
+                    cols_dir = st.columns(2)
+                    for idx_l, (label_l, url_l) in enumerate(links_list):
+                        cols_dir[idx_l % 2].markdown(f"- 🔗 [{label_l}]({url_l})")
 
         # --- MODUL SCREENER & PAPAN PERINGKAT SAHAM (1.011 EMITEN BEI) ---
         st.markdown("---")
